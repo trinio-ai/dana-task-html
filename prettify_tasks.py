@@ -1,9 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
+#!/usr/bin/env python3
+"""
+Prettify Task HTML Files
+
+Adds a comprehensive base CSS stylesheet to all task HTML files
+to make them look professional and easy to read for QA assistants.
+"""
+
+import os
+import re
+from pathlib import Path
+
+# Comprehensive base CSS stylesheet
+BASE_CSS = '''
     /* ========================================
        DANA Task Form Base Styles v2
        ======================================== */
@@ -461,155 +469,108 @@
             display: none;
         }
     }
+'''
+
+def inject_css(html_content: str) -> str:
+    """Inject base CSS into HTML content."""
+
+    # Check if we have a <style> tag in <head>
+    style_pattern = r'(<head[^>]*>.*?)(<style[^>]*>)(.*?)(</style>)(.*?</head>)'
+
+    match = re.search(style_pattern, html_content, re.DOTALL | re.IGNORECASE)
+
+    if match:
+        # Has existing style tag - prepend our CSS to it
+        before_head = match.group(1)
+        style_open = match.group(2)
+        existing_css = match.group(3)
+        style_close = match.group(4)
+        after_style = match.group(5)
+
+        # Combine base CSS with existing CSS
+        new_css = BASE_CSS + "\n\n    /* Original Task Styles */\n" + existing_css
+
+        new_head = before_head + style_open + new_css + style_close + after_style
+        html_content = re.sub(style_pattern, new_head, html_content, flags=re.DOTALL | re.IGNORECASE)
+    else:
+        # No style tag - add one after <head>
+        head_pattern = r'(<head[^>]*>)'
+        style_tag = f'\\1\n    <style>{BASE_CSS}\n    </style>'
+        html_content = re.sub(head_pattern, style_tag, html_content, flags=re.IGNORECASE)
+
+    return html_content
 
 
-    /* Original Task Styles */
+def prettify_html_files(base_dir: str) -> tuple[int, int]:
+    """
+    Process all HTML files in the directory tree.
 
-    
+    Returns:
+        Tuple of (processed_count, error_count)
+    """
+    base_path = Path(base_dir)
+    html_files = list(base_path.rglob("*.html"))
 
-        .form-field { margin-bottom: 15px; }
-        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .required { color: red; }
-        .row { display: flex; gap: 15px; }
-        .col { flex: 1; }
-        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .items-table th, .items-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
-        .items-table th { background: #f5f5f5; }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn-add { background: #007bff; color: white; }
-        .btn-remove { background: #dc3545; color: white; padding: 4px 8px; }
-    </style>
-</head>
-<body>
-    <div class="form-container">
-        <form id="taskForm">
-            <div class="row">
-                <div class="col">
-                    <div class="form-field">
-                        <label for="from_warehouse">From Warehouse <span class="required">*</span></label>
-                        <select id="from_warehouse" name="from_warehouse" required
-                                data-fetch-endpoint="/api/erp/warehouses">
-                            <option value="">Select Source</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="form-field">
-                        <label for="to_warehouse">To Warehouse <span class="required">*</span></label>
-                        <select id="to_warehouse" name="to_warehouse" required
-                                data-fetch-endpoint="/api/erp/warehouses">
-                            <option value="">Select Destination</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="form-field">
-                        <label for="schedule_date">Schedule Date</label>
-                        <input type="date" id="schedule_date" name="schedule_date">
-                    </div>
-                </div>
-            </div>
+    processed = 0
+    errors = 0
 
-            <div class="form-field">
-                <label>Items to Transfer <span class="required">*</span></label>
-                <table class="items-table">
-                    <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th>Qty</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="itemsBody"></tbody>
-                </table>
-                <button type="button" class="btn btn-add" onclick="addRow()" style="margin-top:10px;">Add Item</button>
-            </div>
-        </form>
-    </div>
+    for html_file in html_files:
+        try:
+            # Read original content
+            with open(html_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
 
-    <script>
-        let itemOptions = [];
+            # Skip if already has latest CSS (v2), but update if has old version
+            if 'DANA Task Form Base Styles v2' in original_content:
+                print(f"  [SKIP] {html_file.relative_to(base_path)} - already has v2")
+                continue
 
-        function addRow() {
-            const tbody = document.getElementById('itemsBody');
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>
-                    <select class="item-select" required>
-                        <option value="">Select Item</option>
-                        ${itemOptions.map(i => `<option value="${i.value}">${i.label}</option>`).join('')}
-                    </select>
-                </td>
-                <td><input type="number" class="qty-input" value="1" min="1" required style="width:100px;"></td>
-                <td><button type="button" class="btn btn-remove" onclick="this.closest('tr').remove()">X</button></td>
-            `;
-            tbody.appendChild(row);
-        }
+            # Remove old CSS if present (v1)
+            if 'DANA Task Form Base Styles' in original_content:
+                # Remove old CSS block
+                old_css_pattern = r'/\* ={40}\s+DANA Task Form Base Styles\s+={40} \*/.*?/\* Original Task Styles \*/'
+                original_content = re.sub(old_css_pattern, '', original_content, flags=re.DOTALL)
+                print(f"  [UPDATE] {html_file.relative_to(base_path)} - upgrading to v2")
 
-        function getTaskInput() {
-            const items = [];
-            document.querySelectorAll('#itemsBody tr').forEach(row => {
-                const itemCode = row.querySelector('.item-select')?.value;
-                const qty = parseFloat(row.querySelector('.qty-input')?.value || 0);
-                if (itemCode && qty > 0) {
-                    items.push({ item_code: itemCode, qty: qty });
-                }
-            });
+            # Inject CSS
+            new_content = inject_css(original_content)
 
-            return {
-                stock_entry_type: 'Material Transfer',
-                from_warehouse: document.getElementById('from_warehouse').value,
-                to_warehouse: document.getElementById('to_warehouse').value,
-                schedule_date: document.getElementById('schedule_date').value || null,
-                items: items
-            };
-        }
+            # Write updated content
+            with open(html_file, 'w', encoding='utf-8') as f:
+                f.write(new_content)
 
-        function validateForm() {
-            if (!document.getElementById('from_warehouse').value) {
-                alert('Please select source warehouse');
-                return false;
-            }
-            if (!document.getElementById('to_warehouse').value) {
-                alert('Please select destination warehouse');
-                return false;
-            }
-            if (document.getElementById('from_warehouse').value === document.getElementById('to_warehouse').value) {
-                alert('Source and destination warehouses must be different');
-                return false;
-            }
-            if (document.querySelectorAll('#itemsBody tr').length === 0) {
-                alert('Please add at least one item');
-                return false;
-            }
-            return true;
-        }
+            print(f"  [OK] {html_file.relative_to(base_path)}")
+            processed += 1
 
-        function setTaskInput(data) {
-            if (!data) return;
-            if (data.options?.item_code) {
-                itemOptions = data.options.item_code;
-            }
-            if (data.options?.warehouse) {
-                const fromSelect = document.getElementById('from_warehouse');
-                const toSelect = document.getElementById('to_warehouse');
-                const opts = data.options.warehouse.map(w =>
-                    `<option value="${w.value}">${w.label}</option>`
-                ).join('');
-                fromSelect.innerHTML = '<option value="">Select Source</option>' + opts;
-                toSelect.innerHTML = '<option value="">Select Destination</option>' + opts;
-            }
-            // Add initial row
-            if (document.querySelectorAll('#itemsBody tr').length === 0) {
-                addRow();
-            }
-        }
+        except Exception as e:
+            print(f"  [ERROR] {html_file}: {e}")
+            errors += 1
 
-        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
-        window.getTaskInput = getTaskInput;
-        window.setTaskInput = setTaskInput;
-        window.validateTaskInput = validateForm;
-    </script>
-</body>
-</html>
+    return processed, errors
+
+
+def main():
+    """Main entry point."""
+    print("=" * 60)
+    print("DANA Task HTML Prettifier")
+    print("=" * 60)
+
+    base_dir = Path(__file__).parent / "dana-tasks"
+
+    if not base_dir.exists():
+        print(f"ERROR: Directory not found: {base_dir}")
+        return 1
+
+    print(f"\nProcessing HTML files in: {base_dir}\n")
+
+    processed, errors = prettify_html_files(str(base_dir))
+
+    print("\n" + "=" * 60)
+    print(f"COMPLETE: {processed} files prettified, {errors} errors")
+    print("=" * 60)
+
+    return 0 if errors == 0 else 1
+
+
+if __name__ == "__main__":
+    exit(main())
