@@ -13,8 +13,18 @@ from pathlib import Path
 # Comprehensive base CSS stylesheet
 BASE_CSS = '''
     /* ========================================
-       DANA Task Form Base Styles v2
+       DANA Task Form Base Styles v3
        ======================================== */
+
+    /* Task Title - Above bordered container */
+    .task-title {
+        text-align: center;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin-bottom: 20px;
+        letter-spacing: -0.5px;
+    }
 
     /* CSS Reset & Base */
     *, *::before, *::after {
@@ -35,8 +45,8 @@ BASE_CSS = '''
         padding: 32px 16px;
         min-height: 100%;
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: center;
     }
 
     /* Form Container - Centered with black border */
@@ -501,6 +511,27 @@ def inject_css(html_content: str) -> str:
     return html_content
 
 
+def inject_title(html_content: str, title: str) -> str:
+    """Inject task title above the form-container."""
+
+    # Add title h1 right after <body> tag
+    title_html = f'\n    <h1 class="task-title">{title}</h1>'
+
+    # Find the body tag and insert title after it
+    body_pattern = r'(<body[^>]*>)'
+
+    if re.search(body_pattern, html_content, re.IGNORECASE):
+        html_content = re.sub(
+            body_pattern,
+            r'\1' + title_html,
+            html_content,
+            count=1,
+            flags=re.IGNORECASE
+        )
+
+    return html_content
+
+
 def prettify_html_files(base_dir: str) -> tuple[int, int]:
     """
     Process all HTML files in the directory tree.
@@ -520,20 +551,27 @@ def prettify_html_files(base_dir: str) -> tuple[int, int]:
             with open(html_file, 'r', encoding='utf-8') as f:
                 original_content = f.read()
 
-            # Skip if already has latest CSS (v2), but update if has old version
-            if 'DANA Task Form Base Styles v2' in original_content:
-                print(f"  [SKIP] {html_file.relative_to(base_path)} - already has v2")
+            # Skip if already has latest CSS (v3), but update if has old version
+            if 'DANA Task Form Base Styles v3' in original_content:
+                print(f"  [SKIP] {html_file.relative_to(base_path)} - already has v3")
                 continue
 
-            # Remove old CSS if present (v1)
+            # Remove old CSS if present (v1 or v2)
             if 'DANA Task Form Base Styles' in original_content:
                 # Remove old CSS block
-                old_css_pattern = r'/\* ={40}\s+DANA Task Form Base Styles\s+={40} \*/.*?/\* Original Task Styles \*/'
+                old_css_pattern = r'/\* ={40}\s+DANA Task Form Base Styles[^=]*={40} \*/.*?/\* Original Task Styles \*/'
                 original_content = re.sub(old_css_pattern, '', original_content, flags=re.DOTALL)
-                print(f"  [UPDATE] {html_file.relative_to(base_path)} - upgrading to v2")
+                # Remove old title if present
+                original_content = re.sub(r'<h1 class="task-title">[^<]*</h1>\s*', '', original_content)
+                print(f"  [UPDATE] {html_file.relative_to(base_path)} - upgrading to v3")
 
-            # Inject CSS
+            # Extract task title from path (e.g., "cost-center-allocate" -> "Cost Center Allocate")
+            task_folder = html_file.parent.name
+            task_title = task_folder.replace('-', ' ').title()
+
+            # Inject CSS and title
             new_content = inject_css(original_content)
+            new_content = inject_title(new_content, task_title)
 
             # Write updated content
             with open(html_file, 'w', encoding='utf-8') as f:

@@ -5,8 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
     /* ========================================
-       DANA Task Form Base Styles v2
+       DANA Task Form Base Styles v3
        ======================================== */
+
+    /* Task Title - Above bordered container */
+    .task-title {
+        text-align: center;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin-bottom: 20px;
+        letter-spacing: -0.5px;
+    }
 
     /* CSS Reset & Base */
     *, *::before, *::after {
@@ -27,8 +37,8 @@
         padding: 32px 16px;
         min-height: 100%;
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: center;
     }
 
     /* Form Container - Centered with black border */
@@ -467,6 +477,8 @@
 
     
 
+    
+
         .results-table { width: 100%; border-collapse: collapse; }
         .results-table th, .results-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         .results-table th { background: #f5f5f5; }
@@ -482,6 +494,7 @@
     </style>
 </head>
 <body>
+    <h1 class="task-title">Supplier Items</h1>
     <div class="form-container">
         <form id="taskForm">
             <div class="form-field">

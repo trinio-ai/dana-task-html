@@ -3,8 +3,18 @@
 <head>
     <style>
     /* ========================================
-       DANA Task Form Base Styles v2
+       DANA Task Form Base Styles v3
        ======================================== */
+
+    /* Task Title - Above bordered container */
+    .task-title {
+        text-align: center;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin-bottom: 20px;
+        letter-spacing: -0.5px;
+    }
 
     /* CSS Reset & Base */
     *, *::before, *::after {
@@ -25,8 +35,8 @@
         padding: 32px 16px;
         min-height: 100%;
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: center;
     }
 
     /* Form Container - Centered with black border */
@@ -462,6 +472,8 @@
 
 
     /* Original Task Styles */
+
+    
 
     /* ========================================
        DANA Task Form Base Styles
@@ -913,6 +925,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
 <body>
+    <h1 class="task-title">Stock Entry Transfer</h1>
     <div class="form-container">
 
         <form id="taskForm">
