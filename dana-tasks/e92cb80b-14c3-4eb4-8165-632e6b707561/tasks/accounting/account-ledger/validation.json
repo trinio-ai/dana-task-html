@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"account": {"type": "string"}, "from_date": {"type": "string", "format": "date"}, "to_date": {"type": "string", "format": "date"}, "party_type": {"type": "string"}, "party": {"type": "string"}}, "required": ["account", "from_date", "to_date"]}

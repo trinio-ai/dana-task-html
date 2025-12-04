@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier_name">Supplier Name <span class="required">*</span></label>
+                <input type="text" id="supplier_name" name="supplier_name" required placeholder="Enter supplier name">
+            </div>
+
+            <div class="form-field">
+                <label for="supplier_group">Supplier Group <span class="required">*</span></label>
+                <select id="supplier_group" name="supplier_group" required data-dependency-task="supplier-group-create" data-dependency-label="+ New Supplier Group">
+                    <option value="">Select supplier group</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="supplier_type">Supplier Type</label>
+                <select id="supplier_type" name="supplier_type">
+                    <option value="Company">Company</option>
+                    <option value="Individual">Individual</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier_name').value.trim()) {
+                errors.push('Supplier name is required');
+            }
+            if (!document.getElementById('supplier_group').value) {
+                errors.push('Supplier group is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) input.value = data[key];
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .status-indicator { padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; }
+        .status-active { background: #d4edda; color: #155724; }
+        .status-frozen { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="account">Account <span class="required">*</span></label>
+                <select id="account" name="account" required data-fetch-endpoint="/api/erp/accounts" onchange="updateStatus()">
+                    <option value="">Select Account</option>
+                </select>
+            </div>
+
+            <div id="statusIndicator" class="status-indicator status-active" style="display: none;">
+                <strong id="statusText">Account is Active</strong>
+                <p id="statusDescription">This account can receive new postings.</p>
+            </div>
+
+            <div class="form-field">
+                <label for="action">Action <span class="required">*</span></label>
+                <select id="action" name="action" required>
+                    <option value="">Select Action</option>
+                    <option value="freeze">Freeze Account (Disable Postings)</option>
+                    <option value="unfreeze">Unfreeze Account (Enable Postings)</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="reason">Reason</label>
+                <textarea id="reason" name="reason" rows="2" placeholder="Optional: Provide reason for freezing/unfreezing"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function updateStatus() {
+            // This would be populated from fetch data
+            const indicator = document.getElementById('statusIndicator');
+            indicator.style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                account: document.getElementById('account').value,
+                action: document.getElementById('action').value,
+                disabled: document.getElementById('action').value === 'freeze',
+                reason: document.getElementById('reason').value
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            ['account', 'action'].forEach(id => {
+                const el = document.getElementById(id);
+                el.closest('.form-field').classList.remove('error');
+                if (!el.value) {
+                    el.closest('.form-field').classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.account) document.getElementById('account').value = data.account;
+            if (data.disabled !== undefined) {
+                const indicator = document.getElementById('statusIndicator');
+                indicator.style.display = 'block';
+                if (data.disabled) {
+                    indicator.className = 'status-indicator status-frozen';
+                    document.getElementById('statusText').textContent = 'Account is Frozen';
+                    document.getElementById('statusDescription').textContent = 'This account cannot receive new postings.';
+                } else {
+                    indicator.className = 'status-indicator status-active';
+                    document.getElementById('statusText').textContent = 'Account is Active';
+                    document.getElementById('statusDescription').textContent = 'This account can receive new postings.';
+                }
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

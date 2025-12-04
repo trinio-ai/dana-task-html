@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .filters { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; display: flex; gap: 15px; flex-wrap: wrap; }
+        .filters .form-field { flex: 1; min-width: 200px; margin: 0; }
+        .entries-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .entries-table th, .entries-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .entries-table th { background: #f5f5f5; position: sticky; top: 0; }
+        .entries-table tbody { max-height: 400px; overflow-y: auto; }
+        .debit { color: #dc3545; }
+        .credit { color: #28a745; }
+        .summary { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #b8daff; }
+        .match { color: #28a745; font-weight: bold; }
+        .no-match { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="filters">
+                <div class="form-field">
+                    <label for="bank_account">Bank Account <span class="required">*</span></label>
+                    <select id="bank_account" name="bank_account" required data-fetch-endpoint="/api/erp/accounts?account_type=Bank">
+                        <option value="">Select Bank Account</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="from_date">From Date <span class="required">*</span></label>
+                    <input type="date" id="from_date" name="from_date" required>
+                </div>
+                <div class="form-field">
+                    <label for="to_date">To Date <span class="required">*</span></label>
+                    <input type="date" id="to_date" name="to_date" required>
+                </div>
+                <div class="form-field">
+                    <label for="statement_closing_balance">Statement Closing Balance</label>
+                    <input type="number" id="statement_closing_balance" name="statement_closing_balance" step="0.01">
+                </div>
+            </div>
+
+            <button type="button" id="fetchEntries" onclick="loadEntries()">Load Entries</button>
+
+            <h4>Unreconciled Entries</h4>
+            <table class="entries-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Reference</th>
+                        <th>Party</th>
+                        <th>Debit</th>
+                        <th>Credit</th>
+                        <th>Clearance Date</th>
+                    </tr>
+                </thead>
+                <tbody id="entriesBody">
+                    <tr><td colspan="8">Select a bank account and date range, then click "Load Entries"</td></tr>
+                </tbody>
+            </table>
+
+            <div class="summary">
+                <div class="summary-row">
+                    <span>Opening Balance (System):</span>
+                    <span id="opening_balance">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Debits:</span>
+                    <span id="total_debits" class="debit">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Credits:</span>
+                    <span id="total_credits" class="credit">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Closing Balance (System):</span>
+                    <span id="system_closing">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Statement Closing Balance:</span>
+                    <span id="statement_balance">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Difference:</span>
+                    <span id="difference">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Set default dates
+        const today = new Date();
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('from_date').valueAsDate = firstOfMonth;
+        document.getElementById('to_date').valueAsDate = today;
+
+        let entries = [];
+
+        function toggleAll(checkbox) {
+            document.querySelectorAll('#entriesBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            calculateSummary();
+        }
+
+        function loadEntries() {
+            // In real implementation, this would trigger a fetch
+            // For now, we rely on setTaskInput to populate
+            const msg = { type: 'fetchData', filters: {
+                bank_account: document.getElementById('bank_account').value,
+                from_date: document.getElementById('from_date').value,
+                to_date: document.getElementById('to_date').value
+            }};
+            window.parent.postMessage(msg, '*');
+        }
+
+        function calculateSummary() {
+            let totalDebits = 0, totalCredits = 0;
+            document.querySelectorAll('#entriesBody tr[data-entry]').forEach(row => {
+                const isChecked = row.querySelector('input[type="checkbox"]').checked;
+                if (isChecked) {
+                    totalDebits += parseFloat(row.dataset.debit) || 0;
+                    totalCredits += parseFloat(row.dataset.credit) || 0;
+                }
+            });
+
+            const opening = parseFloat(document.getElementById('opening_balance').textContent) || 0;
+            const systemClosing = opening + totalDebits - totalCredits;
+            const statementBalance = parseFloat(document.getElementById('statement_closing_balance').value) || 0;
+            const difference = systemClosing - statementBalance;
+
+            document.getElementById('total_debits').textContent = totalDebits.toFixed(2);
+            document.getElementById('total_credits').textContent = totalCredits.toFixed(2);
+            document.getElementById('system_closing').textContent = systemClosing.toFixed(2);
+            document.getElementById('statement_balance').textContent = statementBalance.toFixed(2);
+
+            const diffEl = document.getElementById('difference');
+            diffEl.textContent = difference.toFixed(2);
+            diffEl.className = Math.abs(difference) < 0.01 ? 'match' : 'no-match';
+        }
+
+        document.getElementById('statement_closing_balance').addEventListener('input', calculateSummary);
+
+        function getTaskInput() {
+            const reconciled_entries = [];
+            document.querySelectorAll('#entriesBody tr[data-entry]').forEach(row => {
+                if (row.querySelector('input[type="checkbox"]').checked) {
+                    const clearanceDate = row.querySelector('[name="clearance_date"]').value;
+                    reconciled_entries.push({
+                        voucher_type: row.dataset.voucherType,
+                        voucher_no: row.dataset.entry,
+                        clearance_date: clearanceDate || document.getElementById('to_date').value
+                    });
+                }
+            });
+            return {
+                bank_account: document.getElementById('bank_account').value,
+                from_date: document.getElementById('from_date').value,
+                to_date: document.getElementById('to_date').value,
+                statement_closing_balance: parseFloat(document.getElementById('statement_closing_balance').value) || 0,
+                reconciled_entries
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('bank_account').value) {
+                alert('Please select a bank account');
+                return false;
+            }
+            const entries = getTaskInput().reconciled_entries;
+            if (entries.length === 0) {
+                alert('Please select entries to reconcile');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.bank_account) document.getElementById('bank_account').value = data.bank_account;
+            if (data.opening_balance !== undefined) {
+                document.getElementById('opening_balance').textContent = data.opening_balance.toFixed(2);
+            }
+
+            if (data.entries && data.entries.length > 0) {
+                entries = data.entries;
+                const tbody = document.getElementById('entriesBody');
+                tbody.innerHTML = '';
+                data.entries.forEach(entry => {
+                    const row = document.createElement('tr');
+                    row.dataset.entry = entry.name;
+                    row.dataset.voucherType = entry.voucher_type;
+                    row.dataset.debit = entry.debit || 0;
+                    row.dataset.credit = entry.credit || 0;
+                    row.innerHTML = `
+                        <td><input type="checkbox" onchange="calculateSummary()"></td>
+                        <td>${entry.posting_date}</td>
+                        <td>${entry.voucher_type}</td>
+                        <td>${entry.voucher_no}</td>
+                        <td>${entry.party || '-'}</td>
+                        <td class="debit">${(entry.debit || 0).toFixed(2)}</td>
+                        <td class="credit">${(entry.credit || 0).toFixed(2)}</td>
+                        <td><input type="date" name="clearance_date" value="${data.to_date || ''}"></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            calculateSummary();
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

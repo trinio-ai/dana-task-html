@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .ledger-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        .ledger-table th, .ledger-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+        .ledger-table th { background: #f5f5f5; position: sticky; top: 0; }
+        .text-right { text-align: right; }
+        .in { color: #28a745; }
+        .out { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="from_date">From Date <span class="required">*</span></label>
+                        <input type="date" id="from_date" name="from_date" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="to_date">To Date <span class="required">*</span></label>
+                        <input type="date" id="to_date" name="to_date" required>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_code">Item</label>
+                        <select id="item_code" name="item_code" data-fetch-endpoint="/api/erp/items">
+                            <option value="">All Items</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse</label>
+                        <select id="warehouse" name="warehouse" data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reportContainer" style="display: none;">
+                <table class="ledger-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Item</th>
+                            <th>Warehouse</th>
+                            <th>Voucher Type</th>
+                            <th>Voucher No</th>
+                            <th class="text-right">In Qty</th>
+                            <th class="text-right">Out Qty</th>
+                            <th class="text-right">Balance</th>
+                            <th class="text-right">Rate</th>
+                            <th class="text-right">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Set default dates
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('from_date').valueAsDate = firstDay;
+        document.getElementById('to_date').valueAsDate = today;
+
+        function getTaskInput() {
+            return {
+                from_date: document.getElementById('from_date').value,
+                to_date: document.getElementById('to_date').value,
+                item_code: document.getElementById('item_code').value || null,
+                warehouse: document.getElementById('warehouse').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('from_date').value) {
+                alert('Please select from date');
+                return false;
+            }
+            if (!document.getElementById('to_date').value) {
+                alert('Please select to date');
+                return false;
+            }
+            return true;
+        }
+
+        function renderReport(data) {
+            const entries = data.data || data || [];
+            const tbody = document.getElementById('reportBody');
+            tbody.innerHTML = '';
+
+            entries.forEach(entry => {
+                const inQty = entry.actual_qty > 0 ? entry.actual_qty : 0;
+                const outQty = entry.actual_qty < 0 ? Math.abs(entry.actual_qty) : 0;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${entry.posting_date}</td>
+                    <td>${entry.item_code}</td>
+                    <td>${entry.warehouse}</td>
+                    <td>${entry.voucher_type}</td>
+                    <td>${entry.voucher_no}</td>
+                    <td class="text-right in">${inQty > 0 ? inQty.toLocaleString() : '-'}</td>
+                    <td class="text-right out">${outQty > 0 ? outQty.toLocaleString() : '-'}</td>
+                    <td class="text-right">${parseFloat(entry.qty_after_transaction || 0).toLocaleString()}</td>
+                    <td class="text-right">${parseFloat(entry.valuation_rate || 0).toLocaleString()}</td>
+                    <td class="text-right">${parseFloat(entry.stock_value || 0).toLocaleString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('reportContainer').style.display = 'block';
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data) || data.data) {
+                renderReport(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

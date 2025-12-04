@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input, .items-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .add-row-btn { background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .remove-row-btn { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        .supplier-checkboxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+        .supplier-checkbox { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .supplier-checkbox input { margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="transaction_date">Date</label>
+                    <input type="date" id="transaction_date" name="transaction_date">
+                </div>
+                <div class="form-field">
+                    <label for="schedule_date">Required By</label>
+                    <input type="date" id="schedule_date" name="schedule_date">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <h4>Items <span class="required">*</span></h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>UOM</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+                <button type="button" class="add-row-btn" onclick="addItemRow()">+ Add Item</button>
+            </div>
+
+            <div class="form-field">
+                <h4>Select Suppliers <span class="required">*</span></h4>
+                <div class="supplier-checkboxes" id="supplierCheckboxes">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="message_for_supplier">Message for Suppliers</label>
+                <textarea id="message_for_supplier" name="message_for_supplier" rows="3"
+                          placeholder="Enter any special instructions or requirements"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let itemOptions = [];
+        let uomOptions = [];
+        let supplierOptions = [];
+        let rowCount = 0;
+        let isInitialized = false; // Track if initial data has been loaded
+
+        function addItemRow(data = {}) {
+            rowCount++;
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            row.id = `item-row-${rowCount}`;
+            row.innerHTML = `
+                <td>
+                    <select name="item_code_${rowCount}" required onchange="updateUOM(this)">
+                        <option value="">Select Item</option>
+                        ${itemOptions.map(i => `<option value="${i.value}" ${i.value === data.item_code ? 'selected' : ''}>${i.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><input type="number" name="qty_${rowCount}" value="${data.qty || 1}" min="0.001" step="0.001" required></td>
+                <td>
+                    <select name="uom_${rowCount}">
+                        ${uomOptions.map(u => `<option value="${u.value}" ${u.value === data.uom ? 'selected' : ''}>${u.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><button type="button" class="remove-row-btn" onclick="removeRow(${rowCount})">X</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function removeRow(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (row) row.remove();
+        }
+
+        function updateUOM(select) {
+            const selectedItem = itemOptions.find(i => i.value === select.value);
+            if (selectedItem && selectedItem.uom) {
+                const row = select.closest('tr');
+                const uomSelect = row.querySelector('select[name^="uom_"]');
+                if (uomSelect) uomSelect.value = selectedItem.uom;
+            }
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemSelect = row.querySelector('select[name^="item_code_"]');
+                const qtyInput = row.querySelector('input[name^="qty_"]');
+                const uomSelect = row.querySelector('select[name^="uom_"]');
+                if (itemSelect && itemSelect.value) {
+                    items.push({
+                        item_code: itemSelect.value,
+                        qty: parseFloat(qtyInput.value) || 1,
+                        uom: uomSelect ? uomSelect.value : null
+                    });
+                }
+            });
+
+            const suppliers = [];
+            document.querySelectorAll('input[name="supplier"]:checked').forEach(cb => {
+                suppliers.push(cb.value);
+            });
+
+            return {
+                transaction_date: document.getElementById('transaction_date').value || null,
+                schedule_date: document.getElementById('schedule_date').value || null,
+                suppliers: suppliers,
+                items: items,
+                message_for_supplier: document.getElementById('message_for_supplier').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (data.items.length === 0) { alert('Please add at least one item'); return false; }
+            if (data.suppliers.length === 0) { alert('Please select at least one supplier'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Always update dropdown options (they come from API)
+            if (data.options) {
+                if (data.options.item) itemOptions = data.options.item;
+                if (data.options.uom) uomOptions = data.options.uom;
+                if (data.options.supplier) {
+                    supplierOptions = data.options.supplier;
+                    const container = document.getElementById('supplierCheckboxes');
+                    // Only create checkboxes if they don't exist yet
+                    if (container.children.length === 0) {
+                        container.innerHTML = supplierOptions.map(s => `
+                            <label class="supplier-checkbox">
+                                <input type="checkbox" name="supplier" value="${s.value}">
+                                ${s.label}
+                            </label>
+                        `).join('');
+                    }
+                }
+            }
+
+            // Only restore form values on FIRST call (initial load / page refresh)
+            // After that, user has control - we don't overwrite their input
+            if (isInitialized) {
+                return;
+            }
+            isInitialized = true;
+
+            // Restore saved form values
+            if (data.transaction_date) {
+                document.getElementById('transaction_date').value = data.transaction_date;
+            } else {
+                document.getElementById('transaction_date').value = new Date().toISOString().split('T')[0];
+            }
+
+            if (data.schedule_date) {
+                document.getElementById('schedule_date').value = data.schedule_date;
+            }
+
+            if (data.message_for_supplier) {
+                document.getElementById('message_for_supplier').value = data.message_for_supplier;
+            }
+
+            // Restore selected suppliers
+            if (data.suppliers && Array.isArray(data.suppliers)) {
+                document.querySelectorAll('input[name="supplier"]').forEach(cb => {
+                    cb.checked = data.suppliers.includes(cb.value);
+                });
+            }
+
+            // Restore items
+            if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+                document.getElementById('itemsBody').innerHTML = '';
+                rowCount = 0;
+                data.items.forEach(item => addItemRow(item));
+            } else {
+                addItemRow();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

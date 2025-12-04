@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .allocation-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .allocation-table th, .allocation-table td { padding: 8px; border: 1px solid #ddd; }
+        .allocation-table th { background: #f5f5f5; }
+        .btn-add { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        .btn-remove { padding: 4px 8px; background: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .total-row { font-weight: bold; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="source_cost_center">Source Cost Center <span class="required">*</span></label>
+                <select id="source_cost_center" name="source_cost_center" required data-fetch-endpoint="/api/erp/cost-centers">
+                    <option value="">Select Cost Center</option>
+                </select>
+                <small class="help-text">Cost center to allocate from (overhead/shared)</small>
+            </div>
+
+            <div class="form-field">
+                <label>Allocation Distribution <span class="required">*</span></label>
+                <table class="allocation-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60%">Target Cost Center</th>
+                            <th style="width: 25%">Percentage (%)</th>
+                            <th style="width: 15%">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allocationBody">
+                        <tr>
+                            <td>
+                                <select class="target-cc" data-fetch-endpoint="/api/erp/cost-centers">
+                                    <option value="">Select</option>
+                                </select>
+                            </td>
+                            <td><input type="number" class="percentage" value="0" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                            <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td>Total</td>
+                            <td><span id="totalPercentage">0</span>%</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <button type="button" class="btn-add" onclick="addRow()">Add Allocation</button>
+                <small class="help-text">Total must equal 100%</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function addRow() {
+            const tbody = document.getElementById('allocationBody');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><select class="target-cc"><option value="">Select</option></select></td>
+                <td><input type="number" class="percentage" value="0" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function removeRow(btn) {
+            const tbody = document.getElementById('allocationBody');
+            if (tbody.rows.length > 1) {
+                btn.closest('tr').remove();
+                updateTotal();
+            }
+        }
+
+        function updateTotal() {
+            let total = 0;
+            document.querySelectorAll('.percentage').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            document.getElementById('totalPercentage').textContent = total.toFixed(2);
+        }
+
+        function getTaskInput() {
+            const allocations = [];
+            document.querySelectorAll('#allocationBody tr').forEach(row => {
+                const target = row.querySelector('.target-cc').value;
+                const percentage = parseFloat(row.querySelector('.percentage').value) || 0;
+                if (target && percentage > 0) {
+                    allocations.push({ target_cost_center: target, percentage });
+                }
+            });
+            return {
+                source_cost_center: document.getElementById('source_cost_center').value,
+                allocations
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            if (!document.getElementById('source_cost_center').value) {
+                document.getElementById('source_cost_center').closest('.form-field').classList.add('error');
+                isValid = false;
+            }
+            const total = parseFloat(document.getElementById('totalPercentage').textContent);
+            if (Math.abs(total - 100) > 0.01) {
+                alert('Total allocation must equal 100%');
+                isValid = false;
+            }
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.source_cost_center) document.getElementById('source_cost_center').value = data.source_cost_center;
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="alert alert-info">
+                <strong>Note:</strong> Enabling tracking requires entry of serial/batch numbers for all stock transactions.
+            </div>
+
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="has_serial_no" name="has_serial_no">
+                    <span>Enable Serial Number Tracking</span>
+                </label>
+                <small>Track individual units with unique serial numbers</small>
+            </div>
+
+            <div class="form-field">
+                <label for="serial_no_series">Serial Number Series</label>
+                <input type="text" id="serial_no_series" name="serial_no_series" placeholder="e.g., SN-.#####">
+                <small>Pattern for auto-generating serial numbers</small>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="has_batch_no" name="has_batch_no">
+                    <span>Enable Batch Number Tracking</span>
+                </label>
+                <small>Track groups of items with batch numbers</small>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="create_new_batch" name="create_new_batch">
+                    <span>Auto-create batch on purchase</span>
+                </label>
+            </div>
+
+            <div class="form-field">
+                <label for="batch_number_series">Batch Number Series</label>
+                <input type="text" id="batch_number_series" name="batch_number_series" placeholder="e.g., BATCH-.#####">
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="has_expiry_date" name="has_expiry_date">
+                    <span>Track Expiry Date</span>
+                </label>
+                <small>Required for perishable goods</small>
+            </div>
+
+            <div class="form-field">
+                <label for="shelf_life_in_days">Shelf Life (Days)</label>
+                <input type="number" id="shelf_life_in_days" name="shelf_life_in_days" min="0" placeholder="365">
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="retain_sample" name="retain_sample">
+                    <span>Retain Sample</span>
+                </label>
+                <small>Keep sample for quality testing</small>
+            </div>
+
+            <div class="form-field">
+                <label for="sample_quantity">Sample Quantity</label>
+                <input type="number" id="sample_quantity" name="sample_quantity" min="0" step="0.01" placeholder="1">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            const checkboxes = ['has_serial_no', 'has_batch_no', 'create_new_batch', 'has_expiry_date', 'retain_sample'];
+
+            for (let [key, value] of formData.entries()) {
+                if (key === 'shelf_life_in_days') {
+                    data[key] = value ? parseInt(value) : null;
+                } else if (key === 'sample_quantity') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else if (!checkboxes.includes(key)) {
+                    data[key] = value;
+                }
+            }
+
+            checkboxes.forEach(cb => {
+                data[cb] = document.getElementById(cb).checked;
+            });
+
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

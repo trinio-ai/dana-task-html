@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .delivery-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .section-title { background: #e9ecef; padding: 10px 15px; margin: 20px -15px 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="delivery_note">Select Delivery Note <span class="required">*</span></label>
+                <select id="delivery_note" name="delivery_note" required onchange="loadDeliveryNote()"
+                        data-fetch-endpoint="/api/erp/selling/delivery-notes?docstatus=1">
+                    <option value="">Select Delivery Note</option>
+                </select>
+            </div>
+
+            <div class="delivery-info" id="deliveryInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Delivery Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Items:</span>
+                    <span id="info_items">-</span>
+                </div>
+            </div>
+
+            <div class="section-title">Transport Details</div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="transporter">Transporter</label>
+                        <input type="text" id="transporter" name="transporter" placeholder="Transport company name">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="vehicle_no">Vehicle Number</label>
+                        <input type="text" id="vehicle_no" name="vehicle_no" placeholder="e.g., 12가 3456">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="lr_no">LR Number</label>
+                        <input type="text" id="lr_no" name="lr_no" placeholder="Lorry Receipt Number">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="lr_date">LR Date</label>
+                        <input type="date" id="lr_date" name="lr_date">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">Tracking Information</div>
+
+            <div class="form-field">
+                <label for="tracking_number">Tracking Number</label>
+                <input type="text" id="tracking_number" name="tracking_number" placeholder="Shipment tracking number">
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="driver_name">Driver Name</label>
+                        <input type="text" id="driver_name" name="driver_name" placeholder="Driver's name">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="driver_contact">Driver Contact</label>
+                        <input type="tel" id="driver_contact" name="driver_contact" placeholder="Driver's phone number">
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadDeliveryNote() {
+            const deliveryNote = document.getElementById('delivery_note').value;
+            if (!deliveryNote) {
+                document.getElementById('deliveryInfo').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/delivery-notes/${deliveryNote}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderDelivery(data) {
+            document.getElementById('info_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_date').textContent = data.posting_date || '-';
+            document.getElementById('info_items').textContent = (data.items || []).length;
+            document.getElementById('deliveryInfo').style.display = 'block';
+
+            // Pre-fill existing values
+            if (data.transporter) document.getElementById('transporter').value = data.transporter;
+            if (data.vehicle_no) document.getElementById('vehicle_no').value = data.vehicle_no;
+            if (data.lr_no) document.getElementById('lr_no').value = data.lr_no;
+            if (data.lr_date) document.getElementById('lr_date').value = data.lr_date;
+        }
+
+        function getTaskInput() {
+            return {
+                delivery_note: document.getElementById('delivery_note').value,
+                transporter: document.getElementById('transporter').value || null,
+                vehicle_no: document.getElementById('vehicle_no').value || null,
+                lr_no: document.getElementById('lr_no').value || null,
+                lr_date: document.getElementById('lr_date').value || null,
+                tracking_number: document.getElementById('tracking_number').value || null,
+                driver_name: document.getElementById('driver_name').value || null,
+                driver_contact: document.getElementById('driver_contact').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('delivery_note').value) {
+                alert('Please select a delivery note');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.delivery_note || data.name) {
+                renderDelivery(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('delivery_note');
+                select.innerHTML = '<option value="">Select Delivery Note</option>' +
+                    items.map(d => `<option value="${d.name}">${d.label || d.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

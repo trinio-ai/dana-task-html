@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="original_invoice">원본 송장 번호 <span class="required">*</span></label>
+  <input type="text" id="original_invoice" name="original_invoice" required>
+</div>
+<div class="form-field">
+  <label for="return_date">반품일 <span class="required">*</span></label>
+  <input type="date" id="return_date" name="return_date" required>
+</div>
+<div class="form-field">
+  <label for="reason">반품 사유 <span class="required">*</span></label>
+  <select id="reason" name="reason" required>
+    <option value="">선택하세요</option>
+    <option value="불량">불량</option>
+    <option value="오배송">오배송</option>
+    <option value="고객 변심">고객 변심</option>
+    <option value="기타">기타</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="items">반품 품목 (JSON) <span class="required">*</span></label>
+  <textarea id="items" name="items" required></textarea>
+</div>
+<div class="form-field">
+  <label for="notes">비고</label>
+  <textarea id="notes" name="notes"></textarea>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'sales-invoice-create-return',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

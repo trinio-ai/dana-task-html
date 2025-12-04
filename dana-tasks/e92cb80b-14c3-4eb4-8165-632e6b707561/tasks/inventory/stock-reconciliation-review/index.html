@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .reconciliation-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .approval-section { margin-top: 20px; padding: 15px; border-radius: 8px; }
+        .approval-section.approve { background: #d4edda; border: 1px solid #c3e6cb; }
+        .approval-section.reject { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .radio-group { display: flex; gap: 20px; margin: 10px 0; }
+        .radio-label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="reconciliation_id">Select Reconciliation <span class="required">*</span></label>
+                <select id="reconciliation_id" name="reconciliation_id" required onchange="loadReconciliation()"
+                        data-fetch-endpoint="/api/erp/inventory/stock-reconciliations?docstatus=0">
+                    <option value="">Select Reconciliation</option>
+                </select>
+            </div>
+
+            <div class="reconciliation-info" id="reconciliationInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Posting Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Purpose:</span>
+                    <span id="info_purpose">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Items:</span>
+                    <span id="info_items">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Difference:</span>
+                    <span id="info_difference">-</span>
+                </div>
+            </div>
+
+            <div class="approval-section" id="approvalSection" style="display: none;">
+                <div class="form-field">
+                    <label>Review Decision <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="approved" value="true" onchange="updateApprovalStyle()"> Approve
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="approved" value="false" onchange="updateApprovalStyle()"> Reject
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="review_notes">Review Notes</label>
+                    <textarea id="review_notes" name="review_notes" rows="3"
+                              placeholder="Add any notes about this review..."></textarea>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadReconciliation() {
+            const id = document.getElementById('reconciliation_id').value;
+            if (!id) {
+                document.getElementById('reconciliationInfo').style.display = 'none';
+                document.getElementById('approvalSection').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/stock-reconciliations/${id}` }, '*');
+        }
+
+        function renderReconciliation(data) {
+            document.getElementById('info_date').textContent = data.posting_date || '-';
+            document.getElementById('info_purpose').textContent = data.purpose || '-';
+            document.getElementById('info_items').textContent = (data.items?.length || 0).toString();
+            document.getElementById('info_difference').textContent = (data.difference_amount || 0).toLocaleString();
+
+            document.getElementById('reconciliationInfo').style.display = 'block';
+            document.getElementById('approvalSection').style.display = 'block';
+        }
+
+        function updateApprovalStyle() {
+            const approved = document.querySelector('input[name="approved"]:checked')?.value;
+            const section = document.getElementById('approvalSection');
+            section.classList.remove('approve', 'reject');
+            if (approved === 'true') section.classList.add('approve');
+            else if (approved === 'false') section.classList.add('reject');
+        }
+
+        function getTaskInput() {
+            const approved = document.querySelector('input[name="approved"]:checked')?.value;
+            return {
+                reconciliation_id: document.getElementById('reconciliation_id').value,
+                approved: approved === 'true',
+                review_notes: document.getElementById('review_notes').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('reconciliation_id').value) {
+                alert('Please select a reconciliation');
+                return false;
+            }
+            if (!document.querySelector('input[name="approved"]:checked')) {
+                alert('Please select approve or reject');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.posting_date !== undefined) {
+                renderReconciliation(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('reconciliation_id');
+                select.innerHTML = '<option value="">Select Reconciliation</option>' +
+                    items.map(r => `<option value="${r.name}">${r.name} (${r.posting_date})</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

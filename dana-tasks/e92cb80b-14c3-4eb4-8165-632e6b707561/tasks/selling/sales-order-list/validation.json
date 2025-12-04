@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"customer": {"type": "string"}, "from_date": {"type": "string"}, "to_date": {"type": "string"}, "status": {"type": "string", "enum": ["전체", "초안", "제출됨", "진행중", "완료", "취소"]}}, "required": []}

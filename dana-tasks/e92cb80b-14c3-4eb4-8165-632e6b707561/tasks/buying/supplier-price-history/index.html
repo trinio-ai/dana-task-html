@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th, .results-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .results-table th { background: #f5f5f5; }
+        .results-table tr:hover { background: #f9f9f9; }
+        .price-change { font-size: 0.85em; }
+        .price-up { color: #dc3545; }
+        .price-down { color: #28a745; }
+        .price-same { color: #6c757d; }
+        .summary { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
+        .no-results { text-align: center; padding: 40px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="filters">
+                <div class="form-field">
+                    <label for="supplier">Supplier</label>
+                    <select id="supplier" name="supplier"
+                            data-fetch-endpoint="/api/erp/buying/suppliers">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="item">Item</label>
+                    <select id="item" name="item"
+                            data-fetch-endpoint="/api/erp/stock/items?is_purchase_item=1">
+                        <option value="">All Items</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="from_date">From Date</label>
+                    <input type="date" id="from_date" name="from_date">
+                </div>
+                <div class="form-field">
+                    <label for="to_date">To Date</label>
+                    <input type="date" id="to_date" name="to_date">
+                </div>
+            </div>
+
+            <div class="summary" id="summarySection" style="display: none;">
+                <h4>Price Summary</h4>
+                <div class="summary-row">
+                    <span>Average Price:</span>
+                    <span id="avg_price">-</span>
+                </div>
+                <div class="summary-row">
+                    <span>Lowest Price:</span>
+                    <span id="min_price">-</span>
+                </div>
+                <div class="summary-row">
+                    <span>Highest Price:</span>
+                    <span id="max_price">-</span>
+                </div>
+                <div class="summary-row">
+                    <span>Price Change:</span>
+                    <span id="price_change">-</span>
+                </div>
+            </div>
+
+            <div id="resultsContainer">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Document</th>
+                            <th>Item</th>
+                            <th>Supplier</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Change</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let allData = [];
+
+        function calculatePriceChange(current, previous) {
+            if (!previous) return { change: 0, percent: 0 };
+            const change = current - previous;
+            const percent = (change / previous) * 100;
+            return { change, percent };
+        }
+
+        function renderResults(data) {
+            const tbody = document.getElementById('resultsBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-results">No price history found</td></tr>';
+                document.getElementById('summarySection').style.display = 'none';
+                return;
+            }
+
+            // Calculate summary
+            const rates = data.map(d => d.rate || 0).filter(r => r > 0);
+            if (rates.length > 0) {
+                const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+                const min = Math.min(...rates);
+                const max = Math.max(...rates);
+                const firstRate = data[data.length - 1]?.rate || 0;
+                const lastRate = data[0]?.rate || 0;
+                const change = firstRate > 0 ? ((lastRate - firstRate) / firstRate) * 100 : 0;
+
+                document.getElementById('avg_price').textContent = avg.toFixed(2);
+                document.getElementById('min_price').textContent = min.toFixed(2);
+                document.getElementById('max_price').textContent = max.toFixed(2);
+                const changeSpan = document.getElementById('price_change');
+                changeSpan.textContent = (change >= 0 ? '+' : '') + change.toFixed(1) + '%';
+                changeSpan.className = change > 0 ? 'price-up' : change < 0 ? 'price-down' : 'price-same';
+                document.getElementById('summarySection').style.display = 'block';
+            }
+
+            tbody.innerHTML = data.map((row, idx) => {
+                const prevRate = idx < data.length - 1 ? data[idx + 1].rate : null;
+                const { change, percent } = calculatePriceChange(row.rate, prevRate);
+                const changeClass = change > 0 ? 'price-up' : change < 0 ? 'price-down' : 'price-same';
+                const changeIcon = change > 0 ? '↑' : change < 0 ? '↓' : '-';
+
+                return `
+                    <tr>
+                        <td>${row.date || row.posting_date || '-'}</td>
+                        <td>${row.document || row.voucher_no || '-'}</td>
+                        <td>${row.item_name || row.item || '-'}</td>
+                        <td>${row.supplier_name || row.supplier || '-'}</td>
+                        <td>${row.qty || '-'}</td>
+                        <td>${row.rate ? row.rate.toFixed(2) : '-'}</td>
+                        <td class="price-change ${changeClass}">
+                            ${prevRate ? `${changeIcon} ${Math.abs(percent).toFixed(1)}%` : '-'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getTaskInput() {
+            return {
+                supplier: document.getElementById('supplier').value || null,
+                item: document.getElementById('item').value || null,
+                from_date: document.getElementById('from_date').value || null,
+                to_date: document.getElementById('to_date').value || null
+            };
+        }
+
+        function validateForm() {
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data)) {
+                allData = data;
+                renderResults(data);
+            } else if (data.data && Array.isArray(data.data)) {
+                allData = data.data;
+                renderResults(data.data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .warning-box { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .invoice-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .total-row { font-weight: bold; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="id">Sales Invoice <span class="required">*</span></label>
+                <select id="id" name="id" required>
+                    <option value="">Select Draft Invoice</option>
+                </select>
+            </div>
+
+            <div id="invoiceInfo" class="invoice-info" style="display: none;">
+                <h4>Invoice Details</h4>
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Invoice Date:</span>
+                    <span id="posting_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Due Date:</span>
+                    <span id="due_date">-</span>
+                </div>
+
+                <h5>Items</h5>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody"></tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="3">Grand Total</td>
+                            <td id="grand_total">0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="warning-box">
+                <strong>Warning:</strong> Once submitted, this invoice will be posted to Accounts Receivable and cannot be edited. To make corrections, you will need to create a Credit Note.
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="confirm_submit" name="confirm_submit" required>
+                    I confirm this invoice is correct and ready to submit
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Store invoice details from initial fetch for preview
+        let invoiceDetailsMap = {};
+
+        function getTaskInput() {
+            return {
+                id: document.getElementById('id').value,
+                confirm_submit: document.getElementById('confirm_submit').checked
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('id').value) {
+                alert('Please select an invoice');
+                return false;
+            }
+            if (!document.getElementById('confirm_submit').checked) {
+                alert('Please confirm the invoice is ready to submit');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Handle nested data structure from fetch endpoint
+            // Format: { options: {...}, invoice_details: {...}, defaults: {...} }
+            const options = data.data?.options || data.options || {};
+            const details = data.data?.invoice_details || data.invoice_details || {};
+
+            // Store invoice details for later lookup
+            if (Object.keys(details).length > 0) {
+                invoiceDetailsMap = details;
+            }
+
+            // Populate id dropdown from options
+            if (options.id && options.id.length > 0) {
+                const select = document.getElementById('id');
+                select.innerHTML = '<option value="">Select Draft Invoice</option>' +
+                    options.id.map(opt =>
+                        `<option value="${opt.value}">${opt.label}</option>`
+                    ).join('');
+            }
+
+            // Set selected value if provided
+            if (data.id) {
+                document.getElementById('id').value = data.id;
+                // Show details for selected invoice
+                showInvoiceDetails(data.id);
+            }
+        }
+
+        // Show invoice details from cached data
+        function showInvoiceDetails(invoiceId) {
+            if (!invoiceId) {
+                document.getElementById('invoiceInfo').style.display = 'none';
+                document.getElementById('confirm_submit').checked = false;
+                return;
+            }
+
+            const invoice = invoiceDetailsMap[invoiceId];
+            if (!invoice) {
+                console.warn('Invoice details not found for:', invoiceId);
+                document.getElementById('invoiceInfo').style.display = 'none';
+                return;
+            }
+
+            // Display invoice header info
+            document.getElementById('customer').textContent = invoice.customer_name || invoice.customer || '-';
+            document.getElementById('posting_date').textContent = invoice.posting_date || '-';
+            document.getElementById('due_date').textContent = invoice.due_date || '-';
+            document.getElementById('grand_total').textContent = (invoice.grand_total || 0).toLocaleString('ko-KR', { minimumFractionDigits: 2 });
+
+            // Display items
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = '';
+
+            if (invoice.items && invoice.items.length > 0) {
+                invoice.items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.item_name || item.item_code}</td>
+                        <td>${item.qty}</td>
+                        <td>${(item.rate || 0).toLocaleString('ko-KR', { minimumFractionDigits: 2 })}</td>
+                        <td>${(item.amount || 0).toLocaleString('ko-KR', { minimumFractionDigits: 2 })}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="4" style="text-align: center; color: #666;">No items</td>';
+                tbody.appendChild(row);
+            }
+
+            document.getElementById('invoiceInfo').style.display = 'block';
+        }
+
+        // Handle dropdown selection change
+        function onInvoiceSelect(invoiceId) {
+            showInvoiceDetails(invoiceId);
+            // Reset confirm checkbox when changing selection
+            document.getElementById('confirm_submit').checked = false;
+        }
+
+        // Setup event listeners on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropdown = document.getElementById('id');
+            dropdown.addEventListener('change', (e) => onInvoiceSelect(e.target.value));
+        });
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

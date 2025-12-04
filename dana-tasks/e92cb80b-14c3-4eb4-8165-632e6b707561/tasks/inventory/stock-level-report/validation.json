@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item_code": {"type": "string"}, "item_group": {"type": "string", "enum": ["전체", "원자재", "부자재", "완제품"]}, "warehouse": {"type": "string", "enum": ["전체", "중앙창고", "공장창고", "지점창고"]}, "as_of_date": {"type": "string"}, "show_zero_stock": {"type": "boolean"}}, "required": []}

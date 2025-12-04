@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .action-buttons { display: flex; gap: 10px; margin: 20px 0; }
+        .action-buttons button { padding: 10px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; }
+        .approve-btn { background: #28a745; color: white; }
+        .reject-btn { background: #dc3545; color: white; }
+        .selected { box-shadow: 0 0 0 3px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="material_request">Material Request <span class="required">*</span></label>
+                <select id="material_request" name="material_request" required onchange="loadRequest()"
+                        data-fetch-endpoint="/api/erp/buying/material-requests?docstatus=1&status=Pending">
+                    <option value="">Select Material Request</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="requestDetails" style="display: none;">
+                <h4>Request Details</h4>
+                <div class="detail-row">
+                    <span>Type:</span>
+                    <span id="request_type">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Requested By:</span>
+                    <span id="requested_by">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Request Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Required By:</span>
+                    <span id="schedule_date">-</span>
+                </div>
+            </div>
+
+            <div id="itemsSection" style="display: none;">
+                <h4>Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Warehouse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="action-buttons" id="actionButtons" style="display: none;">
+                <input type="hidden" id="action" name="action" value="">
+                <button type="button" class="approve-btn" onclick="setAction('approve')">Approve</button>
+                <button type="button" class="reject-btn" onclick="setAction('reject')">Reject</button>
+            </div>
+
+            <div class="form-field" id="remarksField" style="display: none;">
+                <label for="remarks">Remarks</label>
+                <textarea id="remarks" name="remarks" rows="3" placeholder="Enter reason for rejection (required for rejection)"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentRequest = null;
+        let selectedAction = null;
+
+        function loadRequest() {
+            const mrId = document.getElementById('material_request').value;
+            if (!mrId) {
+                document.getElementById('requestDetails').style.display = 'none';
+                document.getElementById('itemsSection').style.display = 'none';
+                document.getElementById('actionButtons').style.display = 'none';
+                document.getElementById('remarksField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/material-requests/${mrId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function setAction(action) {
+            selectedAction = action;
+            document.getElementById('action').value = action;
+            document.querySelectorAll('.action-buttons button').forEach(btn => btn.classList.remove('selected'));
+            document.querySelector(action === 'approve' ? '.approve-btn' : '.reject-btn').classList.add('selected');
+            document.getElementById('remarksField').style.display = 'block';
+        }
+
+        function renderRequest(data) {
+            currentRequest = data;
+            document.getElementById('request_type').textContent = data.material_request_type || '-';
+            document.getElementById('requested_by').textContent = data.owner || '-';
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+            document.getElementById('schedule_date').textContent = data.schedule_date || '-';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty} ${item.uom || ''}</td>
+                    <td>${item.warehouse || '-'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('requestDetails').style.display = 'block';
+            document.getElementById('itemsSection').style.display = 'block';
+            document.getElementById('actionButtons').style.display = 'flex';
+        }
+
+        function getTaskInput() {
+            return {
+                material_request: document.getElementById('material_request').value,
+                action: selectedAction,
+                remarks: document.getElementById('remarks').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.material_request) { alert('Please select a material request'); return false; }
+            if (!data.action) { alert('Please select an action (Approve or Reject)'); return false; }
+            if (data.action === 'reject' && !data.remarks) { alert('Please provide a reason for rejection'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.material_request_type) {
+                renderRequest(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

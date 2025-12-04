@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; }
+        .items-table th { background: #f5f5f5; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .totals { margin-top: 20px; text-align: right; }
+        .totals-row { display: flex; justify-content: flex-end; gap: 20px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="customer">Customer <span class="required">*</span></label>
+                        <select id="customer" name="customer" required
+                                data-fetch-endpoint="/api/erp/selling/customers">
+                            <option value="">Select Customer</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="posting_date">Delivery Date <span class="required">*</span></label>
+                        <input type="date" id="posting_date" name="posting_date" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="set_warehouse">Source Warehouse</label>
+                        <select id="set_warehouse" name="set_warehouse"
+                                data-fetch-endpoint="/api/erp/selling/warehouses?is_group=0">
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="transporter">Transporter</label>
+                        <input type="text" id="transporter" name="transporter" placeholder="Enter transporter name">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="lr_no">LR No</label>
+                        <input type="text" id="lr_no" name="lr_no" placeholder="Lorry Receipt Number">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="vehicle_no">Vehicle No</label>
+                        <input type="text" id="vehicle_no" name="vehicle_no" placeholder="Vehicle Number">
+                    </div>
+                </div>
+            </div>
+
+            <h3>Items</h3>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Item Code</th>
+                        <th>Qty</th>
+                        <th>Rate</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsBody">
+                </tbody>
+            </table>
+            <button type="button" class="btn btn-primary" onclick="addItem()" style="margin-top: 10px;">Add Item</button>
+
+            <div class="totals">
+                <div class="totals-row">
+                    <span>Total Qty:</span>
+                    <span id="total_qty">0</span>
+                </div>
+                <div class="totals-row">
+                    <span><strong>Grand Total:</strong></span>
+                    <span id="grand_total"><strong>0.00</strong></span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let itemOptions = [];
+        let itemCount = 0;
+
+        function addItem(data = {}) {
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            row.id = `item-row-${itemCount}`;
+            row.innerHTML = `
+                <td>
+                    <select name="items[${itemCount}][item_code]" onchange="updateRow(${itemCount})" style="width: 100%;">
+                        <option value="">Select Item</option>
+                        ${itemOptions.map(opt => `<option value="${opt.value}" ${data.item_code === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><input type="number" name="items[${itemCount}][qty]" value="${data.qty || 1}" min="0" step="0.01" onchange="updateRow(${itemCount})" style="width: 80px;"></td>
+                <td><input type="number" name="items[${itemCount}][rate]" value="${data.rate || 0}" min="0" step="0.01" onchange="updateRow(${itemCount})" style="width: 100px;"></td>
+                <td class="item-amount">${((data.qty || 1) * (data.rate || 0)).toFixed(2)}</td>
+                <td><button type="button" class="btn btn-danger" onclick="removeItem(${itemCount})">Remove</button></td>
+            `;
+            tbody.appendChild(row);
+            itemCount++;
+            calculateTotals();
+        }
+
+        function removeItem(idx) {
+            const row = document.getElementById(`item-row-${idx}`);
+            if (row) row.remove();
+            calculateTotals();
+        }
+
+        function updateRow(idx) {
+            const row = document.getElementById(`item-row-${idx}`);
+            if (!row) return;
+            const qty = parseFloat(row.querySelector(`[name="items[${idx}][qty]"]`).value) || 0;
+            const rate = parseFloat(row.querySelector(`[name="items[${idx}][rate]"]`).value) || 0;
+            row.querySelector('.item-amount').textContent = (qty * rate).toFixed(2);
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let totalQty = 0;
+            let grandTotal = 0;
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const qtyInput = row.querySelector('input[name*="[qty]"]');
+                const rateInput = row.querySelector('input[name*="[rate]"]');
+                if (qtyInput && rateInput) {
+                    const qty = parseFloat(qtyInput.value) || 0;
+                    const rate = parseFloat(rateInput.value) || 0;
+                    totalQty += qty;
+                    grandTotal += qty * rate;
+                }
+            });
+            document.getElementById('total_qty').textContent = totalQty.toFixed(2);
+            document.getElementById('grand_total').innerHTML = `<strong>${grandTotal.toFixed(2)}</strong>`;
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemCode = row.querySelector('select[name*="[item_code]"]')?.value;
+                if (itemCode) {
+                    items.push({
+                        item_code: itemCode,
+                        qty: parseFloat(row.querySelector('input[name*="[qty]"]')?.value) || 0,
+                        rate: parseFloat(row.querySelector('input[name*="[rate]"]')?.value) || 0
+                    });
+                }
+            });
+
+            return {
+                customer: document.getElementById('customer').value,
+                posting_date: document.getElementById('posting_date').value,
+                set_warehouse: document.getElementById('set_warehouse').value || null,
+                transporter: document.getElementById('transporter').value || null,
+                lr_no: document.getElementById('lr_no').value || null,
+                vehicle_no: document.getElementById('vehicle_no').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.customer) { alert('Please select a customer'); return false; }
+            if (!data.posting_date) { alert('Please enter delivery date'); return false; }
+            if (data.items.length === 0) { alert('Please add at least one item'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            if (options.customer) {
+                const customerSelect = document.getElementById('customer');
+                customerSelect.innerHTML = '<option value="">Select Customer</option>' +
+                    options.customer.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+            }
+
+            if (options.item_code) {
+                itemOptions = options.item_code;
+            }
+
+            if (defaults.posting_date) {
+                document.getElementById('posting_date').value = defaults.posting_date;
+            }
+
+            if (document.querySelectorAll('#itemsBody tr').length === 0) {
+                addItem();
+            }
+        }
+
+        // Set default date
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

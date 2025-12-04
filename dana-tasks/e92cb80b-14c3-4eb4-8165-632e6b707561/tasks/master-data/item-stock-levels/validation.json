@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item": {"type": "string", "minLength": 1}, "warehouse": {"type": "string"}, "include_uom_conversion": {"type": "boolean"}, "show_reserved": {"type": "boolean"}, "show_ordered": {"type": "boolean"}}, "required": ["item"]}

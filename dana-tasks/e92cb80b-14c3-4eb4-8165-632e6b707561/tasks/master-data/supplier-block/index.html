@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="alert alert-warning">
+                <strong>Warning:</strong> Blocking a supplier will prevent new purchase orders from being created for them.
+            </div>
+
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required data-dependency-task="supplier-create" data-dependency-label="+ New Supplier">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="action">Action <span class="required">*</span></label>
+                <select id="action" name="action" required>
+                    <option value="">Select action</option>
+                    <option value="block">Block Supplier</option>
+                    <option value="unblock">Unblock Supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="block_reason">Reason <span class="required">*</span></label>
+                <select id="block_reason" name="block_reason" required>
+                    <option value="">Select reason</option>
+                    <option value="Quality Issues">Quality Issues</option>
+                    <option value="Payment Dispute">Payment Dispute</option>
+                    <option value="Delivery Problems">Delivery Problems</option>
+                    <option value="Contract Expired">Contract Expired</option>
+                    <option value="Business Discontinued">Business Discontinued</option>
+                    <option value="Compliance Issues">Compliance Issues</option>
+                    <option value="Reactivation">Reactivation (for unblock)</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="effective_date">Effective Date</label>
+                <input type="date" id="effective_date" name="effective_date">
+                <small>Leave blank to apply immediately</small>
+            </div>
+
+            <div class="form-field">
+                <label for="notes">Notes <span class="required">*</span></label>
+                <textarea id="notes" name="notes" rows="3" required placeholder="Detailed explanation for the action"></textarea>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="notify_purchasing" name="notify_purchasing" checked>
+                    <span>Notify Purchasing Team</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'notify_purchasing') {
+                    data[key] = value;
+                }
+            }
+            data.notify_purchasing = document.getElementById('notify_purchasing').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            if (!document.getElementById('action').value) {
+                errors.push('Action is required');
+            }
+            if (!document.getElementById('block_reason').value) {
+                errors.push('Reason is required');
+            }
+            if (!document.getElementById('notes').value.trim()) {
+                errors.push('Notes are required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

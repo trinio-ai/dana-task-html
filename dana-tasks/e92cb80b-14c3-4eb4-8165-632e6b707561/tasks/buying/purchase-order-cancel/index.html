@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 8px; margin: 15px 0; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_order">Purchase Order <span class="required">*</span></label>
+                <select id="purchase_order" name="purchase_order" required onchange="loadPO()"
+                        data-fetch-endpoint="/api/erp/buying/purchase-orders?docstatus=1">
+                    <option value="">Select Purchase Order</option>
+                </select>
+            </div>
+
+            <div class="warning-box" id="warningBox" style="display: none;">
+                <strong>Warning:</strong> This action cannot be undone. The Purchase Order will be permanently cancelled.
+            </div>
+
+            <div class="detail-section" id="poDetails" style="display: none;">
+                <h4>Purchase Order Details</h4>
+                <div class="detail-row">
+                    <span>Supplier:</span>
+                    <span id="supplier_name">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Grand Total:</span>
+                    <span id="grand_total">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Received:</span>
+                    <span id="per_received">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Billed:</span>
+                    <span id="per_billed">-</span>
+                </div>
+            </div>
+
+            <div class="form-field" id="reasonField" style="display: none;">
+                <label for="reason">Reason for Cancellation <span class="required">*</span></label>
+                <textarea id="reason" name="reason" rows="3" required placeholder="Enter reason for cancelling this Purchase Order"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentPO = null;
+
+        function loadPO() {
+            const poId = document.getElementById('purchase_order').value;
+            if (!poId) {
+                document.getElementById('warningBox').style.display = 'none';
+                document.getElementById('poDetails').style.display = 'none';
+                document.getElementById('reasonField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/purchase-orders/${poId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderPO(data) {
+            currentPO = data;
+
+            document.getElementById('supplier_name').textContent = data.supplier_name || data.supplier || '-';
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+            document.getElementById('grand_total').textContent = data.grand_total ? data.grand_total.toFixed(2) : '-';
+            document.getElementById('per_received').textContent = data.per_received ? data.per_received.toFixed(1) + '%' : '0%';
+            document.getElementById('per_billed').textContent = data.per_billed ? data.per_billed.toFixed(1) + '%' : '0%';
+
+            document.getElementById('warningBox').style.display = 'block';
+            document.getElementById('poDetails').style.display = 'block';
+            document.getElementById('reasonField').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                purchase_order: document.getElementById('purchase_order').value,
+                reason: document.getElementById('reason').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.purchase_order) { alert('Please select a Purchase Order'); return false; }
+            if (!data.reason) { alert('Please provide a reason for cancellation'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.supplier) {
+                renderPO(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

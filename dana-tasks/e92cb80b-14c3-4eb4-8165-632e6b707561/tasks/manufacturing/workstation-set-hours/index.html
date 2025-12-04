@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="workstation">Workstation <span class="required">*</span></label>
+  <select id="workstation" name="workstation" required data-fetch-endpoint="/api/v1/erp/manufacturing/workstation">
+    <option value="">Select</option>
+  </select>
+</div>
+
+<div class="form-field">
+  <label>Working Hours</label>
+  <table class="child-table" data-table-name="working_hours">
+    <thead>
+      <tr>
+        <th>Day</th>
+        <th>Start Time</th>
+        <th>End Time</th>
+        <th>Enabled</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Monday</td>
+        <td><input type="time" name="monday_start" value="08:00"></td>
+        <td><input type="time" name="monday_end" value="17:00"></td>
+        <td><input type="checkbox" name="monday_enabled" checked></td>
+      </tr>
+      <tr>
+        <td>Tuesday</td>
+        <td><input type="time" name="tuesday_start" value="08:00"></td>
+        <td><input type="time" name="tuesday_end" value="17:00"></td>
+        <td><input type="checkbox" name="tuesday_enabled" checked></td>
+      </tr>
+      <tr>
+        <td>Wednesday</td>
+        <td><input type="time" name="wednesday_start" value="08:00"></td>
+        <td><input type="time" name="wednesday_end" value="17:00"></td>
+        <td><input type="checkbox" name="wednesday_enabled" checked></td>
+      </tr>
+      <tr>
+        <td>Thursday</td>
+        <td><input type="time" name="thursday_start" value="08:00"></td>
+        <td><input type="time" name="thursday_end" value="17:00"></td>
+        <td><input type="checkbox" name="thursday_enabled" checked></td>
+      </tr>
+      <tr>
+        <td>Friday</td>
+        <td><input type="time" name="friday_start" value="08:00"></td>
+        <td><input type="time" name="friday_end" value="17:00"></td>
+        <td><input type="checkbox" name="friday_enabled" checked></td>
+      </tr>
+      <tr>
+        <td>Saturday</td>
+        <td><input type="time" name="saturday_start" value="08:00"></td>
+        <td><input type="time" name="saturday_end" value="17:00"></td>
+        <td><input type="checkbox" name="saturday_enabled"></td>
+      </tr>
+      <tr>
+        <td>Sunday</td>
+        <td><input type="time" name="sunday_start" value="08:00"></td>
+        <td><input type="time" name="sunday_end" value="17:00"></td>
+        <td><input type="checkbox" name="sunday_enabled"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'workstation-set-hours',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted successfully!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {
+                workstation: document.getElementById('workstation').value,
+                working_hours: []
+            };
+
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            days.forEach(day => {
+                data.working_hours.push({
+                    day: day.charAt(0).toUpperCase() + day.slice(1),
+                    start_time: document.querySelector(`[name="${day}_start"]`).value,
+                    end_time: document.querySelector(`[name="${day}_end"]`).value,
+                    enabled: document.querySelector(`[name="${day}_enabled"]`).checked
+                });
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = 'This field is required';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            if (data.workstation) {
+                document.getElementById('workstation').value = data.workstation;
+            }
+
+            if (data.working_hours && Array.isArray(data.working_hours)) {
+                data.working_hours.forEach(hour => {
+                    const day = hour.day.toLowerCase();
+                    const startInput = document.querySelector(`[name="${day}_start"]`);
+                    const endInput = document.querySelector(`[name="${day}_end"]`);
+                    const enabledInput = document.querySelector(`[name="${day}_enabled"]`);
+
+                    if (startInput) startInput.value = hour.start_time;
+                    if (endInput) endInput.value = hour.end_time;
+                    if (enabledInput) enabledInput.checked = hour.enabled;
+                });
+            }
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

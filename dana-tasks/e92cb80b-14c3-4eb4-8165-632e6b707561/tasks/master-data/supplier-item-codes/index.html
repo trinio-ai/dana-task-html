@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required data-dependency-task="supplier-create" data-dependency-label="+ New Supplier">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="supplier_item_code">Supplier Item Code <span class="required">*</span></label>
+                <input type="text" id="supplier_item_code" name="supplier_item_code" required placeholder="Supplier's part number">
+                <small>The code the supplier uses for this item</small>
+            </div>
+
+            <div class="form-field">
+                <label for="supplier_item_name">Supplier Item Name</label>
+                <input type="text" id="supplier_item_name" name="supplier_item_name" placeholder="Supplier's item description">
+            </div>
+
+            <div class="form-field">
+                <label for="supplier_price">Supplier Price</label>
+                <input type="number" id="supplier_price" name="supplier_price" step="0.01" min="0" placeholder="0.00">
+            </div>
+
+            <div class="form-field">
+                <label for="currency">Currency</label>
+                <select id="currency" name="currency">
+                    <option value="">Select currency</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="lead_time_days">Lead Time (Days)</label>
+                <input type="number" id="lead_time_days" name="lead_time_days" min="0" placeholder="7">
+                <small>Average delivery time from order</small>
+            </div>
+
+            <div class="form-field">
+                <label for="min_order_qty">Minimum Order Quantity</label>
+                <input type="number" id="min_order_qty" name="min_order_qty" min="0" step="0.01" placeholder="1">
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_preferred" name="is_preferred">
+                    <span>Preferred Supplier for this Item</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'supplier_price' || key === 'min_order_qty') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else if (key === 'lead_time_days') {
+                    data[key] = value ? parseInt(value) : null;
+                } else if (key !== 'is_preferred') {
+                    data[key] = value;
+                }
+            }
+            data.is_preferred = document.getElementById('is_preferred').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            if (!document.getElementById('supplier_item_code').value.trim()) {
+                errors.push('Supplier item code is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"quotation": {"type": "string", "minLength": 1}, "recipient_email": {"type": "string", "format": "email"}, "subject": {"type": "string"}, "message": {"type": "string"}, "attach_pdf": {"type": "boolean"}}, "required": ["quotation", "recipient_email"]}

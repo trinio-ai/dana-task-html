@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="material_request">Material Request <span class="required">*</span></label>
+                <select id="material_request" name="material_request" required onchange="loadRequest()"
+                        data-fetch-endpoint="/api/erp/buying/material-requests?docstatus=1&material_request_type=Purchase">
+                    <option value="">Select Material Request</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="requestDetails" style="display: none;">
+                <h4>Items to Order</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Required By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-field" id="supplierField" style="display: none;">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required
+                        data-fetch-endpoint="/api/erp/buying/suppliers?disabled=0">
+                    <option value="">Select Supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field" id="dateField" style="display: none;">
+                <label for="schedule_date">Expected Delivery Date</label>
+                <input type="date" id="schedule_date" name="schedule_date">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentRequest = null;
+
+        function loadRequest() {
+            const mrId = document.getElementById('material_request').value;
+            if (!mrId) {
+                document.getElementById('requestDetails').style.display = 'none';
+                document.getElementById('supplierField').style.display = 'none';
+                document.getElementById('dateField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/material-requests/${mrId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderRequest(data) {
+            currentRequest = data;
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty} ${item.uom || ''}</td>
+                    <td>${item.schedule_date || '-'}</td>
+                </tr>
+            `).join('');
+
+            // Set default schedule date from first item
+            if (data.items && data.items[0] && data.items[0].schedule_date) {
+                document.getElementById('schedule_date').value = data.items[0].schedule_date;
+            }
+
+            document.getElementById('requestDetails').style.display = 'block';
+            document.getElementById('supplierField').style.display = 'block';
+            document.getElementById('dateField').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                material_request: document.getElementById('material_request').value,
+                supplier: document.getElementById('supplier').value,
+                schedule_date: document.getElementById('schedule_date').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.material_request) { alert('Please select a material request'); return false; }
+            if (!data.supplier) { alert('Please select a supplier'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.material_request_type) {
+                renderRequest(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

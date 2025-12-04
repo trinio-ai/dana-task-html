@@ -1,0 +1,1 @@
+{"type": "object", "properties": {"company_name": {"type": "string", "minLength": 1}, "company_abbr": {"type": "string", "minLength": 1, "maxLength": 10}, "default_currency": {"type": "string"}, "country": {"type": "string", "minLength": 1}}, "required": ["company_name", "company_abbr", "default_currency", "country"]}

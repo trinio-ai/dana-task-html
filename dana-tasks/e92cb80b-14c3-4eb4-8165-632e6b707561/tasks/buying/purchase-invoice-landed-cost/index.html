@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .invoice-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .costs-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .costs-table th, .costs-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .costs-table th { background: #f5f5f5; }
+        .costs-table input, .costs-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .totals { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .total-highlight { font-size: 1.2em; font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_invoice">Purchase Invoice <span class="required">*</span></label>
+                <select id="purchase_invoice" name="purchase_invoice" required data-fetch-endpoint="/api/erp/purchase-invoices?docstatus=0">
+                    <option value="">Select Draft Invoice</option>
+                </select>
+            </div>
+
+            <div id="invoiceInfo" class="invoice-info" style="display: none;">
+                <h4>Invoice Details</h4>
+                <div class="info-row">
+                    <span>Supplier:</span>
+                    <span id="supplier">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Invoice Total (before landed costs):</span>
+                    <span id="invoice_total">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Items:</span>
+                    <span id="item_count">0</span>
+                </div>
+            </div>
+
+            <h4>Landed Costs</h4>
+            <table class="costs-table">
+                <thead>
+                    <tr>
+                        <th>Expense Type</th>
+                        <th>Expense Account</th>
+                        <th>Amount</th>
+                        <th>Distribution</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="costsBody">
+                    <tr>
+                        <td>
+                            <select name="expense_type">
+                                <option value="Freight">Freight</option>
+                                <option value="Customs Duty">Customs Duty</option>
+                                <option value="Insurance">Insurance</option>
+                                <option value="Handling">Handling</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </td>
+                        <td><select name="expense_account" data-fetch-endpoint="/api/erp/accounts?account_type=Expense Account"><option value="">Select Account</option></select></td>
+                        <td><input type="number" name="amount" min="0" step="0.01" value="0" onchange="calculateTotals()"></td>
+                        <td>
+                            <select name="distribution_method">
+                                <option value="amount">By Amount</option>
+                                <option value="qty">By Quantity</option>
+                                <option value="equally">Equally</option>
+                            </select>
+                        </td>
+                        <td><button type="button" onclick="removeRow(this)">X</button></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="button" id="addCost" onclick="addCostRow()">+ Add Cost</button>
+
+            <div class="totals">
+                <div class="info-row">
+                    <span>Total Landed Costs:</span>
+                    <span id="total_landed_cost">0.00</span>
+                </div>
+                <div class="info-row total-highlight">
+                    <span>New Invoice Total:</span>
+                    <span id="new_total">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let invoiceTotal = 0;
+
+        function addCostRow() {
+            const tbody = document.getElementById('costsBody');
+            const row = tbody.rows[0].cloneNode(true);
+            row.querySelectorAll('input').forEach(el => el.value = el.type === 'number' ? '0' : '');
+            row.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+            tbody.appendChild(row);
+        }
+
+        function removeRow(btn) {
+            const tbody = document.getElementById('costsBody');
+            if (tbody.rows.length > 1) {
+                btn.closest('tr').remove();
+                calculateTotals();
+            }
+        }
+
+        function calculateTotals() {
+            let totalLanded = 0;
+            document.querySelectorAll('#costsBody [name="amount"]').forEach(el => {
+                totalLanded += parseFloat(el.value) || 0;
+            });
+            document.getElementById('total_landed_cost').textContent = totalLanded.toFixed(2);
+            document.getElementById('new_total').textContent = (invoiceTotal + totalLanded).toFixed(2);
+        }
+
+        function getTaskInput() {
+            const landed_costs = [];
+            document.querySelectorAll('#costsBody tr').forEach(row => {
+                const amount = parseFloat(row.querySelector('[name="amount"]').value) || 0;
+                if (amount > 0) {
+                    landed_costs.push({
+                        expense_type: row.querySelector('[name="expense_type"]').value,
+                        expense_account: row.querySelector('[name="expense_account"]').value,
+                        amount: amount,
+                        distribution_method: row.querySelector('[name="distribution_method"]').value
+                    });
+                }
+            });
+            return {
+                purchase_invoice: document.getElementById('purchase_invoice').value,
+                landed_costs
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('purchase_invoice').value) {
+                alert('Please select an invoice');
+                return false;
+            }
+            const costs = getTaskInput().landed_costs;
+            if (costs.length === 0) {
+                alert('Please add at least one landed cost');
+                return false;
+            }
+            for (const cost of costs) {
+                if (!cost.expense_account) {
+                    alert('Please select an expense account for all costs');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.purchase_invoice) document.getElementById('purchase_invoice').value = data.purchase_invoice;
+            if (data.supplier) {
+                document.getElementById('supplier').textContent = data.supplier_name || data.supplier;
+                invoiceTotal = data.grand_total || data.total || 0;
+                document.getElementById('invoice_total').textContent = invoiceTotal.toFixed(2);
+                document.getElementById('item_count').textContent = (data.items || []).length;
+                document.getElementById('invoiceInfo').style.display = 'block';
+                calculateTotals();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

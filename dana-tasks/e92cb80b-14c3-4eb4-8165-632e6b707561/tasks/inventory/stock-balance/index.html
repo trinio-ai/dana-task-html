@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .report-table th, .report-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .report-table th { background: #f5f5f5; position: sticky; top: 0; }
+        .text-right { text-align: right; }
+        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+        .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .summary-value { font-size: 24px; font-weight: bold; color: #007bff; }
+        .summary-label { font-size: 12px; color: #666; }
+        .low-stock { background: #fff3cd; }
+        .out-of-stock { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse</label>
+                        <select id="warehouse" name="warehouse" data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_group">Item Group</label>
+                        <select id="item_group" name="item_group" data-fetch-endpoint="/api/erp/item-groups">
+                            <option value="">All Groups</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_code">Item</label>
+                        <select id="item_code" name="item_code" data-fetch-endpoint="/api/erp/items">
+                            <option value="">All Items</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-cards" id="summaryCards" style="display: none;">
+                <div class="summary-card">
+                    <div class="summary-value" id="totalItems">0</div>
+                    <div class="summary-label">Total Items</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="totalQty">0</div>
+                    <div class="summary-label">Total Quantity</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="totalValue">0</div>
+                    <div class="summary-label">Total Value</div>
+                </div>
+            </div>
+
+            <div id="reportContainer" style="display: none;">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">Actual Qty</th>
+                            <th class="text-right">Reserved</th>
+                            <th class="text-right">Available</th>
+                            <th class="text-right">Valuation Rate</th>
+                            <th class="text-right">Stock Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                warehouse: document.getElementById('warehouse').value || null,
+                item_group: document.getElementById('item_group').value || null,
+                item_code: document.getElementById('item_code').value || null
+            };
+        }
+
+        function validateForm() {
+            return true; // All fields optional
+        }
+
+        function renderReport(data) {
+            const items = data.data || data || [];
+            const tbody = document.getElementById('reportBody');
+            tbody.innerHTML = '';
+
+            let totalQty = 0;
+            let totalValue = 0;
+
+            items.forEach(item => {
+                const available = (item.actual_qty || 0) - (item.reserved_qty || 0);
+                totalQty += item.actual_qty || 0;
+                totalValue += item.stock_value || 0;
+
+                let rowClass = '';
+                if (item.actual_qty <= 0) rowClass = 'out-of-stock';
+                else if (item.actual_qty < item.reorder_level) rowClass = 'low-stock';
+
+                const row = document.createElement('tr');
+                row.className = rowClass;
+                row.innerHTML = `
+                    <td>${item.item_code}</td>
+                    <td>${item.item_name || '-'}</td>
+                    <td>${item.warehouse}</td>
+                    <td class="text-right">${parseFloat(item.actual_qty || 0).toLocaleString()}</td>
+                    <td class="text-right">${parseFloat(item.reserved_qty || 0).toLocaleString()}</td>
+                    <td class="text-right">${available.toLocaleString()}</td>
+                    <td class="text-right">${parseFloat(item.valuation_rate || 0).toLocaleString()}</td>
+                    <td class="text-right">${parseFloat(item.stock_value || 0).toLocaleString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('totalItems').textContent = items.length.toLocaleString();
+            document.getElementById('totalQty').textContent = totalQty.toLocaleString();
+            document.getElementById('totalValue').textContent = totalValue.toLocaleString();
+
+            document.getElementById('summaryCards').style.display = 'grid';
+            document.getElementById('reportContainer').style.display = 'block';
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data) || data.data) {
+                renderReport(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

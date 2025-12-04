@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .entry-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .warning { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 4px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="stock_entry">Select Stock Entry to Reverse <span class="required">*</span></label>
+                <select id="stock_entry" name="stock_entry" required onchange="loadEntry()"
+                        data-fetch-endpoint="/api/erp/inventory/stock-entries?docstatus=1">
+                    <option value="">Select Submitted Entry</option>
+                </select>
+            </div>
+
+            <div class="entry-info" id="entryInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Entry Type:</span>
+                    <span id="info_type">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Posting Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Value:</span>
+                    <span id="info_value">-</span>
+                </div>
+            </div>
+
+            <div class="warning" id="warningSection" style="display: none;">
+                <strong>Warning:</strong> Reversing this entry will create a new stock entry with opposite quantities.
+                All inventory changes from the original entry will be undone.
+            </div>
+
+            <div class="form-field" id="reasonField" style="display: none;">
+                <label for="reason">Reason for Reversal <span class="required">*</span></label>
+                <textarea id="reason" name="reason" rows="3" required
+                          placeholder="Please explain why this entry needs to be reversed..."></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadEntry() {
+            const entryId = document.getElementById('stock_entry').value;
+            if (!entryId) {
+                document.getElementById('entryInfo').style.display = 'none';
+                document.getElementById('warningSection').style.display = 'none';
+                document.getElementById('reasonField').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/stock-entries/${entryId}` }, '*');
+        }
+
+        function renderEntry(data) {
+            document.getElementById('info_type').textContent = data.stock_entry_type || '-';
+            document.getElementById('info_date').textContent = data.posting_date || '-';
+            const total = parseFloat(data.total_incoming_value || 0) + parseFloat(data.total_outgoing_value || 0);
+            document.getElementById('info_value').textContent = total.toLocaleString();
+
+            document.getElementById('entryInfo').style.display = 'block';
+            document.getElementById('warningSection').style.display = 'block';
+            document.getElementById('reasonField').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                stock_entry: document.getElementById('stock_entry').value,
+                reason: document.getElementById('reason').value
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('stock_entry').value) {
+                alert('Please select a stock entry');
+                return false;
+            }
+            if (!document.getElementById('reason').value.trim()) {
+                alert('Please provide a reason for reversal');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.stock_entry_type !== undefined) {
+                renderEntry(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('stock_entry');
+                select.innerHTML = '<option value="">Select Submitted Entry</option>' +
+                    items.map(e => `<option value="${e.name}">${e.name} - ${e.stock_entry_type} (${e.posting_date})</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

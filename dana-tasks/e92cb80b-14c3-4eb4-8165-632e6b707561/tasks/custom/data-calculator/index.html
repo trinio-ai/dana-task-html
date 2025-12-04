@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 16px; }
+        .form-section { margin-bottom: 20px; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #333; }
+        .form-row { display: flex; gap: 16px; margin-bottom: 16px; }
+        .form-group { flex: 1; }
+        .form-group.full-width { flex: 2; }
+        label { display: block; margin-bottom: 6px; font-weight: 500; color: #555; }
+        label .required { color: red; margin-left: 2px; }
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4a90d9;
+            box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+        }
+        .help-text { font-size: 12px; color: #888; margin-top: 4px; }
+        .result-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            display: none;
+        }
+        .result-section.visible { display: block; }
+        .result-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            text-align: center;
+            padding: 12px;
+        }
+    </style>
+</head>
+<body>
+    <form id="mainForm">
+        <div class="form-section">
+            <div class="section-title">Calculator Input</div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="number_a">Number A <span class="required">*</span></label>
+                    <input type="number" id="number_a" name="number_a" step="any" required placeholder="Enter first number">
+                    <span class="help-text">First operand</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="operation">Operation <span class="required">*</span></label>
+                    <select id="operation" name="operation" required>
+                        <option value="">-- Select Operation --</option>
+                        <option value="add">Add (+)</option>
+                        <option value="subtract">Subtract (-)</option>
+                        <option value="multiply">Multiply (*)</option>
+                        <option value="divide">Divide (/)</option>
+                    </select>
+                    <span class="help-text">Mathematical operation</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="number_b">Number B <span class="required">*</span></label>
+                    <input type="number" id="number_b" name="number_b" step="any" required placeholder="Enter second number">
+                    <span class="help-text">Second operand</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultSection" class="result-section">
+            <div class="section-title">Result Preview</div>
+            <div id="resultValue" class="result-value">-</div>
+        </div>
+    </form>
+
+    <script>
+        // Populate form with fetched data
+        function populateDropdowns() {
+            const taskData = window.TASK_DATA || {};
+
+            // Set defaults if available
+            if (taskData.defaults) {
+                const defaults = taskData.defaults;
+                if (defaults.number_a !== undefined) {
+                    document.getElementById('number_a').value = defaults.number_a;
+                }
+                if (defaults.number_b !== undefined) {
+                    document.getElementById('number_b').value = defaults.number_b;
+                }
+                if (defaults.operation) {
+                    document.getElementById('operation').value = defaults.operation;
+                }
+            }
+
+            // Update operations dropdown if custom options provided
+            if (taskData.operations) {
+                const opSelect = document.getElementById('operation');
+                // Keep the first placeholder option
+                while (opSelect.options.length > 1) {
+                    opSelect.remove(1);
+                }
+                taskData.operations.forEach(op => {
+                    const option = document.createElement('option');
+                    option.value = op.value;
+                    option.textContent = op.label;
+                    opSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Calculate preview (optional live preview)
+        function updatePreview() {
+            const a = parseFloat(document.getElementById('number_a').value);
+            const b = parseFloat(document.getElementById('number_b').value);
+            const op = document.getElementById('operation').value;
+
+            const resultSection = document.getElementById('resultSection');
+            const resultValue = document.getElementById('resultValue');
+
+            if (isNaN(a) || isNaN(b) || !op) {
+                resultSection.classList.remove('visible');
+                return;
+            }
+
+            let result;
+            let opSymbol;
+
+            switch (op) {
+                case 'add':
+                    result = a + b;
+                    opSymbol = '+';
+                    break;
+                case 'subtract':
+                    result = a - b;
+                    opSymbol = '-';
+                    break;
+                case 'multiply':
+                    result = a * b;
+                    opSymbol = '*';
+                    break;
+                case 'divide':
+                    if (b === 0) {
+                        resultValue.textContent = 'Error: Division by zero';
+                        resultSection.classList.add('visible');
+                        return;
+                    }
+                    result = a / b;
+                    opSymbol = '/';
+                    break;
+                default:
+                    resultSection.classList.remove('visible');
+                    return;
+            }
+
+            resultValue.textContent = `${a} ${opSymbol} ${b} = ${result}`;
+            resultSection.classList.add('visible');
+        }
+
+        // Required interface functions
+        function getTaskInput() {
+            return {
+                number_a: parseFloat(document.getElementById('number_a').value),
+                number_b: parseFloat(document.getElementById('number_b').value),
+                operation: document.getElementById('operation').value
+            };
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            const data = getTaskInput();
+
+            if (isNaN(data.number_a)) {
+                errors.push('Please enter a valid first number');
+            }
+            if (isNaN(data.number_b)) {
+                errors.push('Please enter a valid second number');
+            }
+            if (!data.operation) {
+                errors.push('Please select an operation');
+            }
+            if (data.operation === 'divide' && data.number_b === 0) {
+                errors.push('Cannot divide by zero');
+            }
+
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (data) {
+                if (data.number_a !== undefined) {
+                    document.getElementById('number_a').value = data.number_a;
+                }
+                if (data.number_b !== undefined) {
+                    document.getElementById('number_b').value = data.number_b;
+                }
+                if (data.operation) {
+                    document.getElementById('operation').value = data.operation;
+                }
+                updatePreview();
+            }
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            populateDropdowns();
+
+            // Add live preview listeners
+            document.getElementById('number_a').addEventListener('input', updatePreview);
+            document.getElementById('number_b').addEventListener('input', updatePreview);
+            document.getElementById('operation').addEventListener('change', updatePreview);
+
+            // Initial preview
+            updatePreview();
+        });
+    </script>
+</body>
+</html>

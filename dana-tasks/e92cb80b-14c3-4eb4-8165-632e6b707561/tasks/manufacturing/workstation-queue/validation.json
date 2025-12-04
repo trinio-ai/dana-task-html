@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"workstation": {"type": "string", "x-fetch-endpoint": "/api/v1/erp/manufacturing/workstation", "x-db-column": "workstation"}, "status": {"type": "string", "enum": ["", "Pending", "In Progress", "On Hold", "Completed"]}, "show_completed": {"type": "boolean"}}, "required": ["workstation"]}

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"plan_id": {"type": "string"}, "confirm": {"type": "boolean"}}, "required": ["plan_id", "confirm"]}

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .order-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .current-date { background: #fff3cd; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_order">Select Sales Order <span class="required">*</span></label>
+                <select id="sales_order" name="sales_order" required onchange="loadSalesOrder()"
+                        data-fetch-endpoint="/api/erp/selling/sales-orders?docstatus=1">
+                    <option value="">Select Sales Order</option>
+                </select>
+            </div>
+
+            <div class="order-info" id="orderInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Order Date:</span>
+                    <span id="info_order_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Current Delivery Date:</span>
+                    <span id="info_current_delivery" class="current-date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Grand Total:</span>
+                    <span id="info_total">-</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="delivery_date">New Delivery Date <span class="required">*</span></label>
+                        <input type="date" id="delivery_date" name="delivery_date" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="delivery_warehouse">Delivery Warehouse</label>
+                        <select id="delivery_warehouse" name="delivery_warehouse"
+                                data-fetch-endpoint="/api/erp/selling/warehouses?is_group=0">
+                            <option value="">Keep current warehouse</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadSalesOrder() {
+            const salesOrder = document.getElementById('sales_order').value;
+            if (!salesOrder) {
+                document.getElementById('orderInfo').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/sales-orders/${salesOrder}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderOrder(data) {
+            document.getElementById('info_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_order_date').textContent = data.transaction_date || '-';
+            document.getElementById('info_current_delivery').textContent = data.delivery_date || 'Not set';
+            document.getElementById('info_total').textContent = (data.grand_total || 0).toFixed(2);
+            document.getElementById('orderInfo').style.display = 'block';
+
+            if (data.delivery_date) {
+                document.getElementById('delivery_date').value = data.delivery_date;
+            }
+        }
+
+        function getTaskInput() {
+            return {
+                sales_order: document.getElementById('sales_order').value,
+                delivery_date: document.getElementById('delivery_date').value,
+                delivery_warehouse: document.getElementById('delivery_warehouse').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.sales_order) { alert('Please select a sales order'); return false; }
+            if (!data.delivery_date) { alert('Please enter delivery date'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.sales_order || data.name) {
+                renderOrder(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('sales_order');
+                select.innerHTML = '<option value="">Select Sales Order</option>' +
+                    items.map(o => `<option value="${o.name}">${o.label || o.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

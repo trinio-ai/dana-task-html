@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"sales_invoice": {"type": "string"}, "payment_entry": {"type": "string"}, "allocated_amount": {"type": "number", "minimum": 0}}, "required": ["sales_invoice", "payment_entry", "allocated_amount"]}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="alert alert-warning">
+                <strong>Warning:</strong> Merging customers cannot be undone. Please verify your selection carefully.
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="primary_customer">Primary Customer (to keep) <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="primary_customer" name="primary_customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select primary customer</option>
+                </select>
+                <small>This customer record will be retained with all merged data</small>
+            </div>
+
+            <div class="form-field">
+                <label for="merge_customers">Customers to Merge <span class="required">*</span></label>
+                <select id="merge_customers" name="merge_customers" required multiple size="5" data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                </select>
+                <small>Hold Ctrl/Cmd to select multiple. These records will be disabled after merge.</small>
+            </div>
+
+            <fieldset>
+                <legend>Merge Options</legend>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="transfer_transactions" name="transfer_transactions" checked>
+                        <span>Transfer all transactions to primary customer</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="transfer_contacts" name="transfer_contacts" checked>
+                        <span>Transfer contacts to primary customer</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="transfer_addresses" name="transfer_addresses" checked>
+                        <span>Transfer addresses to primary customer</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="use_highest_credit_limit" name="use_highest_credit_limit" checked>
+                        <span>Use highest credit limit among merged customers</span>
+                    </label>
+                </div>
+            </fieldset>
+
+            <div class="form-field">
+                <label for="merge_reason">Reason for Merge</label>
+                <textarea id="merge_reason" name="merge_reason" rows="2" placeholder="e.g., Duplicate records created during import"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'merge_customers') {
+                    data[key] = value;
+                }
+            }
+            // Get multiple selected values
+            const mergeSelect = document.getElementById('merge_customers');
+            data.merge_customers = Array.from(mergeSelect.selectedOptions).map(opt => opt.value);
+
+            data.transfer_transactions = document.getElementById('transfer_transactions').checked;
+            data.transfer_contacts = document.getElementById('transfer_contacts').checked;
+            data.transfer_addresses = document.getElementById('transfer_addresses').checked;
+            data.use_highest_credit_limit = document.getElementById('use_highest_credit_limit').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            const primaryCustomer = document.getElementById('primary_customer').value;
+            if (!primaryCustomer) {
+                errors.push('Primary customer is required');
+            }
+
+            const mergeSelect = document.getElementById('merge_customers');
+            const mergeCustomers = Array.from(mergeSelect.selectedOptions).map(opt => opt.value);
+            if (mergeCustomers.length === 0) {
+                errors.push('Select at least one customer to merge');
+            }
+            if (mergeCustomers.includes(primaryCustomer)) {
+                errors.push('Cannot merge primary customer into itself');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+
+            if (options.primary_customer) {
+                const select = document.getElementById('primary_customer');
+                select.innerHTML = '<option value=\"\">Select primary customer</option>' + options.primary_customer.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('');
+            }
+            if (options.merge_customers) {
+                const select = document.getElementById('merge_customers');
+                select.innerHTML = options.merge_customers.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('');
+            }
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else if (input.multiple && Array.isArray(data[key])) {
+                        Array.from(input.options).forEach(opt => {
+                            opt.selected = data[key].includes(opt.value);
+                        });
+                    }
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

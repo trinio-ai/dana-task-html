@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input, .items-table select { width: 100%; box-sizing: border-box; }
+        .total-row { font-weight: bold; background: #e7f3ff; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="material_request_type">Request Type <span class="required">*</span></label>
+                    <select id="material_request_type" name="material_request_type" required>
+                        <option value="">Select Type</option>
+                        <option value="Purchase">Purchase</option>
+                        <option value="Material Transfer">Material Transfer</option>
+                        <option value="Material Issue">Material Issue</option>
+                        <option value="Manufacture">Manufacture</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="company">Company <span class="required">*</span></label>
+                    <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies">
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="transaction_date">Request Date <span class="required">*</span></label>
+                    <input type="date" id="transaction_date" name="transaction_date" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="schedule_date">Required By</label>
+                    <input type="date" id="schedule_date" name="schedule_date">
+                </div>
+
+                <div class="form-field">
+                    <label for="warehouse">Target Warehouse</label>
+                    <select id="warehouse" name="warehouse" data-fetch-endpoint="/api/erp/warehouses?is_group=0">
+                        <option value="">Select Warehouse</option>
+                    </select>
+                </div>
+            </div>
+
+            <h4>Items</h4>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Item</th>
+                        <th style="width: 15%;">Qty</th>
+                        <th style="width: 15%;">UOM</th>
+                        <th style="width: 25%;">Warehouse</th>
+                        <th style="width: 10%;">Required By</th>
+                        <th style="width: 5%;"></th>
+                    </tr>
+                </thead>
+                <tbody id="itemsBody">
+                </tbody>
+            </table>
+            <button type="button" onclick="addItemRow()">+ Add Item</button>
+
+            <div class="form-field" style="margin-top: 15px;">
+                <label for="remarks">Remarks</label>
+                <textarea id="remarks" name="remarks" rows="3"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('transaction_date').valueAsDate = new Date();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 7);
+        document.getElementById('schedule_date').valueAsDate = tomorrow;
+
+        let itemOptions = [];
+        let warehouseOptions = [];
+
+        function addItemRow(item = {}) {
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            const itemOptionsHtml = itemOptions.map(i =>
+                `<option value="${i.value}" ${i.value === item.item_code ? 'selected' : ''}>${i.label}</option>`
+            ).join('');
+            const whOptionsHtml = warehouseOptions.map(w =>
+                `<option value="${w.value}" ${w.value === item.warehouse ? 'selected' : ''}>${w.label}</option>`
+            ).join('');
+
+            row.innerHTML = `
+                <td>
+                    <select name="item_code" required onchange="updateItemDetails(this)">
+                        <option value="">Select Item</option>
+                        ${itemOptionsHtml}
+                    </select>
+                </td>
+                <td><input type="number" name="qty" min="0.001" step="0.001" value="${item.qty || 1}" required></td>
+                <td><input type="text" name="uom" value="${item.uom || ''}" readonly></td>
+                <td>
+                    <select name="warehouse">
+                        <option value="">Select Warehouse</option>
+                        ${whOptionsHtml}
+                    </select>
+                </td>
+                <td><input type="date" name="schedule_date" value="${item.schedule_date || ''}"></td>
+                <td><button type="button" onclick="this.closest('tr').remove();">X</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function updateItemDetails(select) {
+            const row = select.closest('tr');
+            const item = itemOptions.find(i => i.value === select.value);
+            if (item) {
+                row.querySelector('[name="uom"]').value = item.uom || item.stock_uom || '';
+            }
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemCode = row.querySelector('[name="item_code"]').value;
+                if (itemCode) {
+                    items.push({
+                        item_code: itemCode,
+                        qty: parseFloat(row.querySelector('[name="qty"]').value) || 0,
+                        uom: row.querySelector('[name="uom"]').value,
+                        warehouse: row.querySelector('[name="warehouse"]').value || null,
+                        schedule_date: row.querySelector('[name="schedule_date"]').value || null
+                    });
+                }
+            });
+
+            return {
+                material_request_type: document.getElementById('material_request_type').value,
+                transaction_date: document.getElementById('transaction_date').value,
+                schedule_date: document.getElementById('schedule_date').value || null,
+                company: document.getElementById('company').value,
+                warehouse: document.getElementById('warehouse').value || null,
+                remarks: document.getElementById('remarks').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.material_request_type) { alert('Please select request type'); return false; }
+            if (!data.transaction_date) { alert('Please select request date'); return false; }
+            if (data.items.length === 0) { alert('Please add at least one item'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options) {
+                if (data.options.item_code) itemOptions = data.options.item_code;
+                if (data.options.warehouse) warehouseOptions = data.options.warehouse;
+            }
+            if (data.items) {
+                data.items.forEach(item => addItemRow(item));
+            } else {
+                addItemRow();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+
+        addItemRow();
+    </script>
+</body>
+</html>

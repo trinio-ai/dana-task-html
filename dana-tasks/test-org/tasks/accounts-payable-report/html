@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">공급처 (선택)</label>
+                <select id="supplier" name="supplier">
+                    <option value="">전체</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="from_date">시작일</label>
+                    <input type="date" id="from_date" name="from_date">
+                </div>
+                <div class="form-field">
+                    <label for="to_date">종료일</label>
+                    <input type="date" id="to_date" name="to_date">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="aging_based_on">연령 기준</label>
+                    <select id="aging_based_on" name="aging_based_on">
+                        <option value="due_date">만기일</option>
+                        <option value="posting_date">송장일</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="range">연령 구간</label>
+                    <select id="range" name="range">
+                        <option value="30">30일</option>
+                        <option value="60">60일</option>
+                        <option value="90">90일</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Store fetch response data
+        let fetchData = null;
+
+        // Initialize form with fetch data
+        function initializeForm(data) {
+            fetchData = data;
+
+            if (!data) return;
+
+            // Populate supplier dropdown
+            if (data.options && data.options.supplier) {
+                const supplierSelect = document.getElementById('supplier');
+                supplierSelect.innerHTML = '<option value="">전체</option>';
+                data.options.supplier.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    supplierSelect.appendChild(option);
+                });
+            }
+
+            // Populate aging_based_on dropdown
+            if (data.options && data.options.aging_based_on) {
+                const agingSelect = document.getElementById('aging_based_on');
+                agingSelect.innerHTML = '';
+                data.options.aging_based_on.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    agingSelect.appendChild(option);
+                });
+            }
+
+            // Populate range dropdown
+            if (data.options && data.options.range) {
+                const rangeSelect = document.getElementById('range');
+                rangeSelect.innerHTML = '';
+                data.options.range.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    rangeSelect.appendChild(option);
+                });
+            }
+
+            // Set defaults
+            if (data.defaults) {
+                if (data.defaults.to_date) {
+                    document.getElementById('to_date').value = data.defaults.to_date;
+                }
+                if (data.defaults.aging_based_on) {
+                    document.getElementById('aging_based_on').value = data.defaults.aging_based_on;
+                }
+                if (data.defaults.range) {
+                    document.getElementById('range').value = data.defaults.range;
+                }
+            }
+        }
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'accounts-payable-report',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('보고서가 생성되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Handle nested data structure from API: { data: { options: {...}, defaults: {...} } }
+            const fetchData = data.data || data;
+
+            // If this is fetch response data, initialize the form
+            if (fetchData.options) {
+                initializeForm(fetchData);
+                return;
+            }
+
+            // Otherwise, populate form fields
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+            if (event.data.type === 'fetchResponse') {
+                initializeForm(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+        window.initializeForm = initializeForm;
+    </script>
+</body>
+</html>

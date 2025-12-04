@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"sales_order": {"type": "string", "minLength": 1}, "payment_terms_template": {"type": ["string", "null"]}, "terms_and_conditions": {"type": ["string", "null"]}, "custom_terms": {"type": ["string", "null"]}}, "required": ["sales_order"]}

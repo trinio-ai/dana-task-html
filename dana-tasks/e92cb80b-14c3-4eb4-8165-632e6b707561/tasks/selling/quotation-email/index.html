@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .checkbox-field { display: flex; align-items: center; gap: 8px; }
+        .checkbox-field input { width: auto; }
+        .quotation-preview { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .preview-row { display: flex; justify-content: space-between; padding: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="quotation">Select Quotation <span class="required">*</span></label>
+                <select id="quotation" name="quotation" required onchange="loadQuotation()"
+                        data-fetch-endpoint="/api/erp/selling/quotations?docstatus=1">
+                    <option value="">Select Quotation</option>
+                </select>
+            </div>
+
+            <div class="quotation-preview" id="quotationPreview" style="display: none;">
+                <h4>Quotation Details</h4>
+                <div class="preview-row">
+                    <span>Customer:</span>
+                    <span id="preview_customer">-</span>
+                </div>
+                <div class="preview-row">
+                    <span>Total:</span>
+                    <span id="preview_total">-</span>
+                </div>
+                <div class="preview-row">
+                    <span>Valid Until:</span>
+                    <span id="preview_valid_till">-</span>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="recipient_email">Recipient Email <span class="required">*</span></label>
+                <input type="email" id="recipient_email" name="recipient_email" required placeholder="customer@example.com">
+            </div>
+
+            <div class="form-field">
+                <label for="subject">Subject</label>
+                <input type="text" id="subject" name="subject" placeholder="Quotation from Our Company">
+            </div>
+
+            <div class="form-field">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" rows="5" placeholder="Dear Customer,
+
+Please find attached our quotation for your review.
+
+Best regards"></textarea>
+            </div>
+
+            <div class="form-field">
+                <div class="checkbox-field">
+                    <input type="checkbox" id="attach_pdf" name="attach_pdf" checked>
+                    <label for="attach_pdf">Attach PDF</label>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadQuotation() {
+            const quotation = document.getElementById('quotation').value;
+            if (!quotation) {
+                document.getElementById('quotationPreview').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/quotations/${quotation}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderQuotation(data) {
+            document.getElementById('preview_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('preview_total').textContent = (data.grand_total || 0).toFixed(2);
+            document.getElementById('preview_valid_till').textContent = data.valid_till || 'Not specified';
+            document.getElementById('quotationPreview').style.display = 'block';
+
+            if (data.contact_email && !document.getElementById('recipient_email').value) {
+                document.getElementById('recipient_email').value = data.contact_email;
+            }
+            if (!document.getElementById('subject').value) {
+                document.getElementById('subject').value = `Quotation ${data.name || data.quotation}`;
+            }
+        }
+
+        function getTaskInput() {
+            return {
+                quotation: document.getElementById('quotation').value,
+                recipient_email: document.getElementById('recipient_email').value,
+                subject: document.getElementById('subject').value || `Quotation`,
+                message: document.getElementById('message').value || '',
+                attach_pdf: document.getElementById('attach_pdf').checked
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.quotation) { alert('Please select a quotation'); return false; }
+            if (!data.recipient_email) { alert('Please enter recipient email'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.quotation || data.name) {
+                renderQuotation(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('quotation');
+                select.innerHTML = '<option value="">Select Quotation</option>' +
+                    items.map(q => `<option value="${q.name}">${q.label || q.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

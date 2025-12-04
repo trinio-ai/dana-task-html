@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+    <style>
+        .field-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .link-button { background: none; border: none; color: #0b61d6; cursor: pointer; padding: 0; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="supplier">Supplier <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('supplier-create')">+ New Supplier</button>
+                </div>
+                <select id="supplier" name="supplier" required onchange="handleNewOption(this)">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="payment_terms">Payment Terms <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('payment-terms-create')">+ New Payment Terms</button>
+                </div>
+                <select id="payment_terms" name="payment_terms" required onchange="handleNewOption(this)">
+                    <option value="">Select payment terms</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="credit_days">Credit Days</label>
+                <input type="number" id="credit_days" name="credit_days" min="0" max="365" placeholder="30">
+                <small>Number of days for payment after invoice date</small>
+            </div>
+
+            <div class="form-field">
+                <label for="discount_percentage">Early Payment Discount (%)</label>
+                <input type="number" id="discount_percentage" name="discount_percentage" step="0.01" min="0" max="100" placeholder="0.00">
+            </div>
+
+            <div class="form-field">
+                <label for="discount_days">Discount Valid Days</label>
+                <input type="number" id="discount_days" name="discount_days" min="0" max="365" placeholder="10">
+                <small>Days within which discount applies</small>
+            </div>
+
+            <div class="form-field">
+                <label for="payment_method">Default Payment Method</label>
+                <select id="payment_method" name="payment_method">
+                    <option value="">Select payment method</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="currency">Currency</label>
+                <select id="currency" name="currency">
+                    <option value="">Select currency</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function populateSelect(selectId, options = [], dependencyTaskId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const base = select.querySelector('option')?.outerHTML || '<option value=\"\">Select</option>';
+            const newOption = dependencyTaskId ? `<option value=\"__new__${dependencyTaskId}\">+ New</option>` : '';
+            select.innerHTML = base + options.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('') + newOption;
+        }
+
+        function openDependencyTask(taskId) {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'openTask', taskId }, '*');
+            } else {
+                console.log('Open dependency task:', taskId);
+            }
+        }
+
+        function handleNewOption(selectEl) {
+            if (selectEl && selectEl.value.startsWith('__new__')) {
+                const taskId = selectEl.value.replace('__new__', '');
+                selectEl.value = '';
+                openDependencyTask(taskId);
+            }
+        }
+
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'credit_days' || key === 'discount_days') {
+                    data[key] = value ? parseInt(value) : null;
+                } else if (key === 'discount_percentage') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else {
+                    data[key] = value;
+                }
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            if (!document.getElementById('payment_terms').value) {
+                errors.push('Payment terms is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            populateSelect('supplier', options.supplier || [], 'supplier-create');
+            populateSelect('payment_terms', options.payment_terms || [], 'payment-terms-create');
+            populateSelect('payment_method', options.payment_method || []);
+            populateSelect('currency', options.currency || []);
+
+            if (defaults.payment_terms) document.getElementById('payment_terms').value = defaults.payment_terms;
+            if (defaults.payment_method) document.getElementById('payment_method').value = defaults.payment_method;
+            if (defaults.currency) document.getElementById('currency').value = defaults.currency;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input && !['supplier','payment_terms','payment_method','currency'].includes(key)) input.value = data[key];
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .payment-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .invoices-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .invoices-table th, .invoices-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .invoices-table th { background: #f5f5f5; }
+        .invoices-table input { width: 100px; padding: 4px; }
+        .summary { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .remaining { font-weight: bold; }
+        .remaining.positive { color: #28a745; }
+        .remaining.negative { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="payment_entry">Payment Entry <span class="required">*</span></label>
+                <select id="payment_entry" name="payment_entry" required data-fetch-endpoint="/api/erp/payment-entries?unallocated_amount>0">
+                    <option value="">Select Payment with Unallocated Amount</option>
+                </select>
+            </div>
+
+            <div id="paymentInfo" class="payment-info" style="display: none;">
+                <h4>Payment Details</h4>
+                <div class="info-row">
+                    <span>Party:</span>
+                    <span id="party">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Payment Date:</span>
+                    <span id="posting_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Amount:</span>
+                    <span id="paid_amount">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Unallocated Amount:</span>
+                    <span id="unallocated_amount">0.00</span>
+                </div>
+            </div>
+
+            <h4>Outstanding Invoices</h4>
+            <table class="invoices-table">
+                <thead>
+                    <tr>
+                        <th>Invoice</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Outstanding</th>
+                        <th>Allocate</th>
+                    </tr>
+                </thead>
+                <tbody id="invoicesBody">
+                    <tr><td colspan="5">Select a payment to see outstanding invoices</td></tr>
+                </tbody>
+            </table>
+
+            <div class="summary">
+                <div class="info-row">
+                    <span>Total Allocated:</span>
+                    <span id="total_allocated">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Remaining Unallocated:</span>
+                    <span id="remaining" class="remaining">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let unallocatedAmount = 0;
+
+        function calculateTotals() {
+            let totalAllocated = 0;
+            document.querySelectorAll('#invoicesBody [name="allocated_amount"]').forEach(el => {
+                totalAllocated += parseFloat(el.value) || 0;
+            });
+            const remaining = unallocatedAmount - totalAllocated;
+            document.getElementById('total_allocated').textContent = totalAllocated.toFixed(2);
+            const remainingEl = document.getElementById('remaining');
+            remainingEl.textContent = remaining.toFixed(2);
+            remainingEl.className = 'remaining ' + (remaining >= 0 ? 'positive' : 'negative');
+        }
+
+        function getTaskInput() {
+            const allocations = [];
+            document.querySelectorAll('#invoicesBody tr[data-invoice]').forEach(row => {
+                const amount = parseFloat(row.querySelector('[name="allocated_amount"]').value) || 0;
+                if (amount > 0) {
+                    allocations.push({
+                        reference_doctype: row.dataset.doctype,
+                        reference_name: row.dataset.invoice,
+                        allocated_amount: amount
+                    });
+                }
+            });
+            return {
+                payment_entry: document.getElementById('payment_entry').value,
+                allocations
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('payment_entry').value) {
+                alert('Please select a payment');
+                return false;
+            }
+            const allocations = getTaskInput().allocations;
+            if (allocations.length === 0) {
+                alert('Please allocate amount to at least one invoice');
+                return false;
+            }
+            const totalAllocated = allocations.reduce((sum, a) => sum + a.allocated_amount, 0);
+            if (totalAllocated > unallocatedAmount) {
+                alert('Total allocation exceeds unallocated amount');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.payment_entry) document.getElementById('payment_entry').value = data.payment_entry;
+            if (data.party) {
+                document.getElementById('party').textContent = data.party_name || data.party;
+                document.getElementById('posting_date').textContent = data.posting_date || '-';
+                document.getElementById('paid_amount').textContent = (data.paid_amount || 0).toFixed(2);
+                unallocatedAmount = data.unallocated_amount || 0;
+                document.getElementById('unallocated_amount').textContent = unallocatedAmount.toFixed(2);
+                document.getElementById('paymentInfo').style.display = 'block';
+
+                // Populate outstanding invoices
+                const tbody = document.getElementById('invoicesBody');
+                if (data.outstanding_invoices && data.outstanding_invoices.length > 0) {
+                    tbody.innerHTML = '';
+                    data.outstanding_invoices.forEach(inv => {
+                        const row = document.createElement('tr');
+                        row.dataset.invoice = inv.name;
+                        row.dataset.doctype = inv.doctype || 'Sales Invoice';
+                        row.innerHTML = `
+                            <td>${inv.name}</td>
+                            <td>${inv.posting_date || '-'}</td>
+                            <td>${(inv.grand_total || 0).toFixed(2)}</td>
+                            <td>${(inv.outstanding_amount || 0).toFixed(2)}</td>
+                            <td><input type="number" name="allocated_amount" min="0" max="${inv.outstanding_amount}" step="0.01" value="0" onchange="calculateTotals()"></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5">No outstanding invoices for this party</td></tr>';
+                }
+
+                calculateTotals();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

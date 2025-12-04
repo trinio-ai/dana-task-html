@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .terms-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .terms-table th, .terms-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+        .terms-table th { background-color: #f5f5f5; }
+        .terms-table input, .terms-table select { width: 100%; padding: 4px; box-sizing: border-box; }
+        .btn-add { margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .btn-remove { padding: 4px 8px; background: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .total-row { font-weight: bold; background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="template_name">Template Name <span class="required">*</span></label>
+                <input type="text" id="template_name" name="template_name" required>
+                <small class="help-text">E.g., Net 30, 2/10 Net 30, 50-50 Payment</small>
+            </div>
+
+            <div class="form-field">
+                <label>Payment Schedule <span class="required">*</span></label>
+                <table class="terms-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%">Invoice Portion (%)</th>
+                            <th style="width: 30%">Due Date Based On</th>
+                            <th style="width: 25%">Credit Days</th>
+                            <th style="width: 20%">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="termsBody">
+                        <tr>
+                            <td><input type="number" class="portion" value="100" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                            <td>
+                                <select class="due-date-based-on">
+                                    <option value="Day after invoice date">Day after invoice date</option>
+                                    <option value="Day after end of invoice month">Day after end of invoice month</option>
+                                    <option value="Month(s) after end of invoice month">Month(s) after end of invoice month</option>
+                                </select>
+                            </td>
+                            <td><input type="number" class="credit-days" value="30" min="0"></td>
+                            <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td>Total: <span id="totalPortion">100</span>%</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <button type="button" class="btn-add" onclick="addRow()">Add Payment Term</button>
+                <small class="help-text">Total invoice portion must equal 100%</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function addRow() {
+            const tbody = document.getElementById('termsBody');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="number" class="portion" value="0" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                <td>
+                    <select class="due-date-based-on">
+                        <option value="Day after invoice date">Day after invoice date</option>
+                        <option value="Day after end of invoice month">Day after end of invoice month</option>
+                        <option value="Month(s) after end of invoice month">Month(s) after end of invoice month</option>
+                    </select>
+                </td>
+                <td><input type="number" class="credit-days" value="0" min="0"></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+            `;
+            tbody.appendChild(row);
+            updateTotal();
+        }
+
+        function removeRow(button) {
+            const tbody = document.getElementById('termsBody');
+            if (tbody.rows.length > 1) {
+                button.closest('tr').remove();
+                updateTotal();
+            }
+        }
+
+        function updateTotal() {
+            const portions = document.querySelectorAll('.portion');
+            let total = 0;
+            portions.forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            document.getElementById('totalPortion').textContent = total.toFixed(2);
+        }
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'payment-terms-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const data = {
+                template_name: document.getElementById('template_name').value,
+                terms: []
+            };
+
+            const rows = document.querySelectorAll('#termsBody tr');
+            rows.forEach(row => {
+                data.terms.push({
+                    invoice_portion: parseFloat(row.querySelector('.portion').value) || 0,
+                    due_date_based_on: row.querySelector('.due-date-based-on').value,
+                    credit_days: parseInt(row.querySelector('.credit-days').value) || 0
+                });
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+                const errorMsg = field.querySelector('.error-message');
+                if (errorMsg) errorMsg.remove();
+            });
+
+            // Validate template name
+            if (!document.getElementById('template_name').value) {
+                const field = document.getElementById('template_name').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Template name is required';
+                field.appendChild(errorMsg);
+                isValid = false;
+            }
+
+            // Validate total portion equals 100
+            const total = parseFloat(document.getElementById('totalPortion').textContent);
+            if (Math.abs(total - 100) > 0.01) {
+                const field = document.querySelector('.terms-table').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Total invoice portion must equal 100%';
+                field.appendChild(errorMsg);
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            if (data.template_name) {
+                document.getElementById('template_name').value = data.template_name;
+            }
+
+            if (data.terms && data.terms.length > 0) {
+                const tbody = document.getElementById('termsBody');
+                tbody.innerHTML = '';
+                data.terms.forEach(term => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="number" class="portion" value="${term.invoice_portion || 0}" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                        <td>
+                            <select class="due-date-based-on">
+                                <option value="Day after invoice date" ${term.due_date_based_on === 'Day after invoice date' ? 'selected' : ''}>Day after invoice date</option>
+                                <option value="Day after end of invoice month" ${term.due_date_based_on === 'Day after end of invoice month' ? 'selected' : ''}>Day after end of invoice month</option>
+                                <option value="Month(s) after end of invoice month" ${term.due_date_based_on === 'Month(s) after end of invoice month' ? 'selected' : ''}>Month(s) after end of invoice month</option>
+                            </select>
+                        </td>
+                        <td><input type="number" class="credit-days" value="${term.credit_days || 0}" min="0"></td>
+                        <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                updateTotal();
+            }
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            const tbody = document.getElementById('termsBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td><input type="number" class="portion" value="100" min="0" max="100" step="0.01" onchange="updateTotal()"></td>
+                    <td>
+                        <select class="due-date-based-on">
+                            <option value="Day after invoice date">Day after invoice date</option>
+                            <option value="Day after end of invoice month">Day after end of invoice month</option>
+                            <option value="Month(s) after end of invoice month">Month(s) after end of invoice month</option>
+                        </select>
+                    </td>
+                    <td><input type="number" class="credit-days" value="30" min="0"></td>
+                    <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+                </tr>
+            `;
+            updateTotal();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

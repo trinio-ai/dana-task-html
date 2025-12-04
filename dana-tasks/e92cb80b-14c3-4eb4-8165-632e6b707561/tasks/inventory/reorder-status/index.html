@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+        .summary-card { padding: 15px; border-radius: 8px; text-align: center; }
+        .card-critical { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .card-warning { background: #fff3cd; border: 1px solid #ffc107; }
+        .card-ok { background: #d4edda; border: 1px solid #c3e6cb; }
+        .summary-value { font-size: 32px; font-weight: bold; }
+        .summary-label { font-size: 12px; color: #666; }
+        .reorder-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .reorder-table th, .reorder-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .reorder-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .critical { background: #f8d7da; }
+        .warning { background: #fff3cd; }
+        .shortage { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse</label>
+                        <select id="warehouse" name="warehouse" data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_group">Item Group</label>
+                        <select id="item_group" name="item_group" data-fetch-endpoint="/api/erp/item-groups">
+                            <option value="">All Groups</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-cards" id="summaryCards" style="display: none;">
+                <div class="summary-card card-critical">
+                    <div class="summary-value" id="criticalCount">0</div>
+                    <div class="summary-label">Out of Stock</div>
+                </div>
+                <div class="summary-card card-warning">
+                    <div class="summary-value" id="warningCount">0</div>
+                    <div class="summary-label">Below Reorder Level</div>
+                </div>
+                <div class="summary-card card-ok">
+                    <div class="summary-value" id="okCount">0</div>
+                    <div class="summary-label">Adequate Stock</div>
+                </div>
+            </div>
+
+            <div id="reportContainer" style="display: none;">
+                <table class="reorder-table">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">Current Qty</th>
+                            <th class="text-right">Reorder Level</th>
+                            <th class="text-right">Reorder Qty</th>
+                            <th class="text-right">Shortage</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                warehouse: document.getElementById('warehouse').value || null,
+                item_group: document.getElementById('item_group').value || null
+            };
+        }
+
+        function validateForm() {
+            return true;
+        }
+
+        function renderReport(data) {
+            const items = data.data || data || [];
+            const tbody = document.getElementById('reportBody');
+            tbody.innerHTML = '';
+
+            let critical = 0, warning = 0, ok = 0;
+
+            items.forEach(item => {
+                const currentQty = item.actual_qty || 0;
+                const reorderLevel = item.reorder_level || 0;
+                const shortage = Math.max(0, reorderLevel - currentQty);
+
+                let status = 'OK';
+                let rowClass = '';
+                if (currentQty <= 0) {
+                    status = 'Out of Stock';
+                    rowClass = 'critical';
+                    critical++;
+                } else if (currentQty < reorderLevel) {
+                    status = 'Below Reorder';
+                    rowClass = 'warning';
+                    warning++;
+                } else {
+                    ok++;
+                }
+
+                const row = document.createElement('tr');
+                row.className = rowClass;
+                row.innerHTML = `
+                    <td>${item.item_code}</td>
+                    <td>${item.item_name || '-'}</td>
+                    <td>${item.warehouse}</td>
+                    <td class="text-right">${currentQty.toLocaleString()}</td>
+                    <td class="text-right">${reorderLevel.toLocaleString()}</td>
+                    <td class="text-right">${(item.reorder_qty || 0).toLocaleString()}</td>
+                    <td class="text-right ${shortage > 0 ? 'shortage' : ''}">${shortage > 0 ? shortage.toLocaleString() : '-'}</td>
+                    <td>${status}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('criticalCount').textContent = critical;
+            document.getElementById('warningCount').textContent = warning;
+            document.getElementById('okCount').textContent = ok;
+
+            document.getElementById('summaryCards').style.display = 'grid';
+            document.getElementById('reportContainer').style.display = 'block';
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data) || data.data) {
+                renderReport(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

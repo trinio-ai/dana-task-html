@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item": {"type": "string", "minLength": 1}, "alternative_item": {"type": "string", "minLength": 1}, "two_way": {"type": "boolean"}, "conversion_factor": {"type": "number", "minimum": 0}, "notes": {"type": "string"}}, "required": ["item", "alternative_item"]}

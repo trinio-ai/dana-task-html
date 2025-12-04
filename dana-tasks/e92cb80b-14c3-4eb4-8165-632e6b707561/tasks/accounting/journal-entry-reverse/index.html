@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .original-entry { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="journal_entry">Journal Entry to Reverse <span class="required">*</span></label>
+                <select id="journal_entry" name="journal_entry" required data-fetch-endpoint="/api/erp/journal-entries?docstatus=1">
+                    <option value="">Select Submitted Journal Entry</option>
+                </select>
+            </div>
+
+            <div id="originalEntry" class="original-entry" style="display: none;">
+                <h4>Original Entry Details</h4>
+                <p><strong>Posting Date:</strong> <span id="originalDate">-</span></p>
+                <p><strong>Amount:</strong> <span id="originalAmount">0.00</span></p>
+                <p><strong>Remark:</strong> <span id="originalRemark">-</span></p>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> A reversal will create a new journal entry with the same accounts but with debit and credit amounts swapped.
+            </div>
+
+            <div class="form-field">
+                <label for="reversal_date">Reversal Date <span class="required">*</span></label>
+                <input type="date" id="reversal_date" name="reversal_date" required>
+                <small class="help-text">Date for the reversal entry</small>
+            </div>
+
+            <div class="form-field">
+                <label for="reversal_reason">Reason for Reversal <span class="required">*</span></label>
+                <textarea id="reversal_reason" name="reversal_reason" rows="3" required placeholder="Explain why this entry is being reversed"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Set today's date as default
+        document.getElementById('reversal_date').valueAsDate = new Date();
+
+        function getTaskInput() {
+            return {
+                journal_entry: document.getElementById('journal_entry').value,
+                reversal_date: document.getElementById('reversal_date').value,
+                reversal_reason: document.getElementById('reversal_reason').value
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            ['journal_entry', 'reversal_date', 'reversal_reason'].forEach(id => {
+                const el = document.getElementById(id);
+                el.closest('.form-field').classList.remove('error');
+                if (!el.value) {
+                    el.closest('.form-field').classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.journal_entry) document.getElementById('journal_entry').value = data.journal_entry;
+            if (data.posting_date) {
+                document.getElementById('originalDate').textContent = data.posting_date;
+                document.getElementById('originalAmount').textContent = (data.total_debit || 0).toFixed(2);
+                document.getElementById('originalRemark').textContent = data.user_remark || '-';
+                document.getElementById('originalEntry').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

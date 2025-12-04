@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"from_uom": {"type": "string"}, "to_uom": {"type": "string"}, "conversion_factor": {"type": "number", "minimum": 1e-06}}, "required": ["from_uom", "to_uom", "conversion_factor"]}

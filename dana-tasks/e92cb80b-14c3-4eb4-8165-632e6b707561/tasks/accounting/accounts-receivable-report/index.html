@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .report-container {
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .filter-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .filter-field {
+            flex: 1;
+            min-width: 150px;
+        }
+        .filter-field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .filter-field select,
+        .filter-field input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        .btn-generate {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-generate:hover {
+            background: #1d4ed8;
+        }
+        .btn-generate:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff40;
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .results-section {
+            display: none;
+        }
+        .results-section.visible {
+            display: block;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .summary-card.total {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+        .summary-card .label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .summary-card .value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .summary-card.total .value {
+            color: #1d4ed8;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .report-table th {
+            background: #f3f4f6;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            white-space: nowrap;
+        }
+        .report-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .report-table tr:hover {
+            background: #f9fafb;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .amount {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+        }
+        .aging-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .aging-current {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .aging-bucket1 {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+        .aging-bucket2 {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+        .aging-bucket3 {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .customer-summary {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .customer-summary h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <form id="filterForm">
+                <div class="filter-row">
+                    <div class="filter-field">
+                        <label for="customer">고객</label>
+                        <select id="customer" name="customer">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="from_date">시작일</label>
+                        <input type="date" id="from_date" name="from_date">
+                    </div>
+                    <div class="filter-field">
+                        <label for="to_date">종료일</label>
+                        <input type="date" id="to_date" name="to_date">
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-field">
+                        <label for="aging_based_on">연령 기준</label>
+                        <select id="aging_based_on" name="aging_based_on">
+                            <option value="due_date">만기일</option>
+                            <option value="posting_date">송장일</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="range">연령 구간</label>
+                        <select id="range" name="range">
+                            <option value="30">30일</option>
+                            <option value="60">60일</option>
+                            <option value="90">90일</option>
+                        </select>
+                    </div>
+                    <div class="filter-field" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn-generate" id="generateBtn">
+                            <span class="btn-text">보고서 생성</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="results-section">
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card total">
+                    <div class="label">총 미수금</div>
+                    <div class="value" id="totalOutstanding">₩0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label" id="currentLabel">0-30일</div>
+                    <div class="value" id="currentAmount">₩0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label" id="bucket1Label">31-60일</div>
+                    <div class="value" id="bucket1Amount">₩0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label" id="bucket2Label">61-90일</div>
+                    <div class="value" id="bucket2Amount">₩0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label" id="bucket3Label">90일 초과</div>
+                    <div class="value" id="bucket3Amount">₩0</div>
+                </div>
+            </div>
+
+            <!-- Invoice Table -->
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>송장번호</th>
+                        <th>고객</th>
+                        <th>송장일</th>
+                        <th>만기일</th>
+                        <th class="text-right">송장금액</th>
+                        <th class="text-right">미수금</th>
+                        <th>연체일</th>
+                        <th>구간</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTableBody">
+                </tbody>
+            </table>
+
+            <!-- No Data Message -->
+            <div id="noDataMessage" class="no-data" style="display: none;">
+                조회된 데이터가 없습니다.
+            </div>
+
+            <!-- Customer Summary -->
+            <div class="customer-summary" id="customerSummary" style="display: none;">
+                <h3>고객별 요약</h3>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>고객</th>
+                            <th class="text-right">송장 수</th>
+                            <th class="text-right">미수금 합계</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerSummaryBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let formInitialized = false;
+
+        // Format currency
+        function formatCurrency(amount) {
+            return '₩' + new Intl.NumberFormat('ko-KR').format(Math.round(amount));
+        }
+
+        // Get aging badge class
+        function getAgingBadgeClass(bucket) {
+            if (bucket.includes('미도래') || bucket.startsWith('0-')) return 'aging-current';
+            if (bucket.includes('31-') || bucket.includes('61-')) return 'aging-bucket1';
+            if (bucket.includes('61-') || bucket.includes('91-')) return 'aging-bucket2';
+            if (bucket.includes('초과')) return 'aging-bucket3';
+            return 'aging-current';
+        }
+
+        // Initialize form with fetch data
+        function initializeForm(options, defaults) {
+            if (formInitialized) return;
+            formInitialized = true;
+
+            // Populate customer dropdown
+            if (options.customer && options.customer.length > 0) {
+                const customerSelect = document.getElementById('customer');
+                customerSelect.innerHTML = '<option value="">전체</option>';
+                options.customer.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    customerSelect.appendChild(option);
+                });
+            }
+
+            // Populate aging_based_on dropdown
+            if (options.aging_based_on && options.aging_based_on.length > 0) {
+                const agingSelect = document.getElementById('aging_based_on');
+                agingSelect.innerHTML = '';
+                options.aging_based_on.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    agingSelect.appendChild(option);
+                });
+            }
+
+            // Populate range dropdown
+            if (options.range && options.range.length > 0) {
+                const rangeSelect = document.getElementById('range');
+                rangeSelect.innerHTML = '';
+                options.range.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    rangeSelect.appendChild(option);
+                });
+            }
+
+            // Set defaults
+            if (defaults.to_date) {
+                document.getElementById('to_date').value = defaults.to_date;
+            }
+            if (defaults.aging_based_on) {
+                document.getElementById('aging_based_on').value = defaults.aging_based_on;
+            }
+            if (defaults.range) {
+                document.getElementById('range').value = defaults.range;
+            }
+        }
+
+        // Render report results
+        function renderReport(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const reportTableBody = document.getElementById('reportTableBody');
+            const noDataMessage = document.getElementById('noDataMessage');
+            const customerSummary = document.getElementById('customerSummary');
+            const customerSummaryBody = document.getElementById('customerSummaryBody');
+
+            resultsSection.classList.add('visible');
+
+            // Update summary cards
+            const totals = data.totals || {};
+            const buckets = data.aging_buckets || {};
+
+            document.getElementById('totalOutstanding').textContent = formatCurrency(totals.total_outstanding || 0);
+            document.getElementById('currentAmount').textContent = formatCurrency(totals.current || 0);
+            document.getElementById('bucket1Amount').textContent = formatCurrency(totals.bucket_1 || 0);
+            document.getElementById('bucket2Amount').textContent = formatCurrency(totals.bucket_2 || 0);
+            document.getElementById('bucket3Amount').textContent = formatCurrency(totals.bucket_3 || 0);
+
+            // Update bucket labels
+            if (buckets.current) document.getElementById('currentLabel').textContent = buckets.current;
+            if (buckets.bucket_1) document.getElementById('bucket1Label').textContent = buckets.bucket_1;
+            if (buckets.bucket_2) document.getElementById('bucket2Label').textContent = buckets.bucket_2;
+            if (buckets.bucket_3) document.getElementById('bucket3Label').textContent = buckets.bucket_3;
+
+            // Render invoice table
+            const reportData = data.report_data || [];
+            if (reportData.length === 0) {
+                reportTableBody.innerHTML = '';
+                noDataMessage.style.display = 'block';
+                customerSummary.style.display = 'none';
+                return;
+            }
+
+            noDataMessage.style.display = 'none';
+            reportTableBody.innerHTML = reportData.map(row => `
+                <tr>
+                    <td>${row.invoice}</td>
+                    <td>${row.customer_name}</td>
+                    <td>${row.posting_date}</td>
+                    <td>${row.due_date || '-'}</td>
+                    <td class="text-right amount">${formatCurrency(row.grand_total)}</td>
+                    <td class="text-right amount">${formatCurrency(row.outstanding_amount)}</td>
+                    <td class="text-right">${row.days_overdue}일</td>
+                    <td><span class="aging-badge ${getAgingBadgeClass(row.aging_bucket)}">${row.aging_bucket}</span></td>
+                </tr>
+            `).join('');
+
+            // Render customer summary
+            const customerData = data.customer_summary || [];
+            if (customerData.length > 0) {
+                customerSummary.style.display = 'block';
+                customerSummaryBody.innerHTML = customerData.map(row => `
+                    <tr>
+                        <td>${row.customer_name}</td>
+                        <td class="text-right">${row.invoice_count}</td>
+                        <td class="text-right amount">${formatCurrency(row.total_outstanding)}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // Show error
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        // Hide error
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // Set loading state
+        function setLoading(loading) {
+            const btn = document.getElementById('generateBtn');
+            const btnText = btn.querySelector('.btn-text');
+
+            if (loading) {
+                btn.disabled = true;
+                btnText.innerHTML = '<span class="spinner"></span> 조회 중...';
+            } else {
+                btn.disabled = false;
+                btnText.textContent = '보고서 생성';
+            }
+        }
+
+        // Get form data
+        function getFormData() {
+            const form = document.getElementById('filterForm');
+            const formData = new FormData(form);
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (value) data[key] = value;
+            }
+            return data;
+        }
+
+        // Pending API request tracking
+        let pendingApiRequest = null;
+
+        // Generate report via parent postMessage (using fetch endpoint)
+        async function generateReport() {
+            hideError();
+            setLoading(true);
+
+            const formData = getFormData();
+            formData.generate_report = true;  // Flag to include report data in fetch response
+            const requestId = 'fetch-' + Date.now();
+
+            // Store the request ID to match with response
+            pendingApiRequest = requestId;
+
+            console.log('[AR Report] Sending TASK_IFRAME_FETCH_DATA', {
+                taskId: window.TASK_ID,
+                tabId: window.TAB_ID,
+                requestId,
+                payload: formData,
+            });
+
+            // Send fetch request to parent with generate_report flag
+            // Parent will use fetch_endpoint from task metadata
+            window.parent.postMessage({
+                type: 'TASK_IFRAME_FETCH_DATA',
+                taskIndex: window.TASK_INDEX || 0,
+                taskId: window.TASK_ID || '',
+                tabId: window.TAB_ID || '',
+                requestId: requestId,
+                payload: formData,
+            }, '*');
+        }
+
+        // Handle fetch response from parent
+        function handleFetchResponse(data) {
+            console.log('[AR Report] Received TASK_FETCH_RESPONSE', data);
+
+            if (data.requestId !== pendingApiRequest) {
+                console.log('[AR Report] RequestId mismatch, ignoring', {
+                    expected: pendingApiRequest,
+                    received: data.requestId,
+                });
+                return;
+            }
+            pendingApiRequest = null;
+            setLoading(false);
+
+            if (data.success) {
+                const responseData = data.data?.data || data.data || {};
+                console.log('[AR Report] Response data:', responseData);
+                // If report_data exists, render the report
+                if (responseData.report_data !== undefined) {
+                    console.log('[AR Report] Rendering report with', responseData.report_data.length, 'rows');
+                    renderReport(responseData);
+                } else {
+                    console.log('[AR Report] No report_data in response');
+                }
+            } else {
+                console.log('[AR Report] Request failed:', data.error);
+                showError(data.error || '보고서 생성 중 오류가 발생했습니다.');
+            }
+        }
+
+        // Form submit handler
+        document.getElementById('filterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await generateReport();
+        });
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            const options = data.data?.options || data.options || {};
+            const defaults = data.data?.defaults || data.defaults || {};
+
+            if (Object.keys(options).length > 0) {
+                initializeForm(options, defaults);
+                return;
+            }
+
+            // Populate form fields (for restore/edit mode)
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        // Get task input
+        function getTaskInput() {
+            return getFormData();
+        }
+
+        // Validate task input
+        function validateTaskInput() {
+            return true; // No required fields for this report
+        }
+
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            console.log('[AR Report] Received message:', event.data?.type, event.data);
+
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+            if (event.data.type === 'fetchResponse') {
+                const options = event.data.data?.data?.options || event.data.data?.options || {};
+                const defaults = event.data.data?.data?.defaults || event.data.data?.defaults || {};
+                initializeForm(options, defaults);
+            }
+            if (event.data.type === 'TASK_FETCH_RESPONSE') {
+                handleFetchResponse(event.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+        window.initializeForm = initializeForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .batch-list { border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; }
+        .batch-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .batch-item:last-child { border-bottom: none; }
+        .batch-item input { width: auto; margin-right: 10px; }
+        .batch-info { flex: 1; }
+        .batch-qty { font-weight: bold; color: #28a745; }
+        .summary { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
+        .warning { background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_code">Item <span class="required">*</span></label>
+                        <select id="item_code" name="item_code" required onchange="loadBatches()"
+                                data-fetch-endpoint="/api/erp/items?has_batch_no=1">
+                            <option value="">Select Item</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse <span class="required">*</span></label>
+                        <select id="warehouse" name="warehouse" required onchange="loadBatches()"
+                                data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label>Select Batches to Merge <span class="required">*</span></label>
+                <div class="batch-list" id="batchList">
+                    <div style="padding: 20px; text-align: center; color: #666;">Select item and warehouse to view batches</div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="target_batch_id">Target Batch ID <span class="required">*</span></label>
+                <input type="text" id="target_batch_id" name="target_batch_id" required placeholder="Enter new batch ID or select existing">
+            </div>
+
+            <div class="summary" id="mergeSummary" style="display: none;">
+                <div class="summary-row">
+                    <span>Batches to Merge:</span>
+                    <span id="summary_count">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Quantity:</span>
+                    <span id="summary_qty">0</span>
+                </div>
+            </div>
+
+            <div class="warning">
+                <strong>Warning:</strong> Merging batches is irreversible. Source batches will be emptied and all stock will be transferred to the target batch.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let availableBatches = [];
+
+        function loadBatches() {
+            const item = document.getElementById('item_code').value;
+            const warehouse = document.getElementById('warehouse').value;
+            if (!item || !warehouse) return;
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/batches?item=${item}&warehouse=${warehouse}` }, '*');
+        }
+
+        function renderBatches(data) {
+            availableBatches = data.data || data || [];
+            const list = document.getElementById('batchList');
+            list.innerHTML = '';
+
+            if (availableBatches.length === 0) {
+                list.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No batches found</div>';
+                return;
+            }
+
+            availableBatches.forEach((batch, idx) => {
+                const div = document.createElement('div');
+                div.className = 'batch-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="batch_${idx}" onchange="updateSummary()">
+                    <div class="batch-info">
+                        <div>${batch.batch_id || batch.name}</div>
+                        <div style="font-size: 12px; color: #666;">Exp: ${batch.expiry_date || 'N/A'}</div>
+                    </div>
+                    <div class="batch-qty">${(batch.batch_qty || 0).toLocaleString()}</div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function updateSummary() {
+            let count = 0, qty = 0;
+            availableBatches.forEach((batch, idx) => {
+                if (document.getElementById(`batch_${idx}`).checked) {
+                    count++;
+                    qty += batch.batch_qty || 0;
+                }
+            });
+
+            document.getElementById('summary_count').textContent = count;
+            document.getElementById('summary_qty').textContent = qty.toLocaleString();
+            document.getElementById('mergeSummary').style.display = count > 0 ? 'block' : 'none';
+        }
+
+        function getTaskInput() {
+            const sourceBatches = [];
+            availableBatches.forEach((batch, idx) => {
+                if (document.getElementById(`batch_${idx}`)?.checked) {
+                    sourceBatches.push(batch.batch_id || batch.name);
+                }
+            });
+
+            return {
+                item_code: document.getElementById('item_code').value,
+                warehouse: document.getElementById('warehouse').value,
+                source_batches: sourceBatches,
+                target_batch_id: document.getElementById('target_batch_id').value
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('item_code').value) {
+                alert('Please select an item');
+                return false;
+            }
+            if (!document.getElementById('warehouse').value) {
+                alert('Please select a warehouse');
+                return false;
+            }
+            const input = getTaskInput();
+            if (input.source_batches.length < 2) {
+                alert('Please select at least 2 batches to merge');
+                return false;
+            }
+            if (!input.target_batch_id) {
+                alert('Please enter a target batch ID');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data) || data.data) {
+                renderBatches(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

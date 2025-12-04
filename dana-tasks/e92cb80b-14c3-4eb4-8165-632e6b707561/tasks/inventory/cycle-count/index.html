@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .count-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .count-table th, .count-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .count-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .count-input { width: 100px; text-align: right; }
+        .difference { font-weight: bold; }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .info-text { font-size: 13px; color: #666; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse <span class="required">*</span></label>
+                        <select id="warehouse" name="warehouse" required onchange="loadItems()"
+                                data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item_group">Item Group</label>
+                        <select id="item_group" name="item_group" onchange="loadItems()"
+                                data-fetch-endpoint="/api/erp/item-groups">
+                            <option value="">All Groups</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <p class="info-text">Enter the counted quantity for each item. Leave blank to skip.</p>
+
+            <div id="countContainer" style="display: none;">
+                <table class="count-table">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th class="text-right">System Qty</th>
+                            <th class="text-right">Counted Qty</th>
+                            <th class="text-right">Difference</th>
+                        </tr>
+                    </thead>
+                    <tbody id="countBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let stockItems = [];
+
+        function loadItems() {
+            const warehouse = document.getElementById('warehouse').value;
+            if (!warehouse) {
+                document.getElementById('countContainer').style.display = 'none';
+                return;
+            }
+            const itemGroup = document.getElementById('item_group').value;
+            let endpoint = `/api/v1/erp/inventory/stock-balance?warehouse=${warehouse}`;
+            if (itemGroup) endpoint += `&item_group=${itemGroup}`;
+            window.parent.postMessage({ type: 'fetchData', endpoint }, '*');
+        }
+
+        function renderItems(data) {
+            stockItems = data.data || data || [];
+            const tbody = document.getElementById('countBody');
+            tbody.innerHTML = '';
+
+            stockItems.forEach((item, idx) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.item_code}</td>
+                    <td>${item.item_name || '-'}</td>
+                    <td class="text-right">${(item.actual_qty || 0).toLocaleString()}</td>
+                    <td>
+                        <input type="number" class="count-input" data-idx="${idx}"
+                               placeholder="${item.actual_qty || 0}" min="0"
+                               oninput="updateDifference(${idx})">
+                    </td>
+                    <td class="text-right">
+                        <span class="difference" id="diff_${idx}">-</span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('countContainer').style.display = 'block';
+        }
+
+        function updateDifference(idx) {
+            const item = stockItems[idx];
+            const input = document.querySelector(`.count-input[data-idx="${idx}"]`);
+            const diffSpan = document.getElementById(`diff_${idx}`);
+
+            if (input.value === '') {
+                diffSpan.textContent = '-';
+                diffSpan.className = 'difference';
+                return;
+            }
+
+            const counted = parseFloat(input.value) || 0;
+            const system = item.actual_qty || 0;
+            const diff = counted - system;
+
+            diffSpan.textContent = (diff > 0 ? '+' : '') + diff.toLocaleString();
+            diffSpan.className = 'difference ' + (diff > 0 ? 'positive' : diff < 0 ? 'negative' : '');
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('.count-input').forEach((input, idx) => {
+                if (input.value !== '') {
+                    const item = stockItems[idx];
+                    items.push({
+                        item_code: item.item_code,
+                        warehouse: item.warehouse,
+                        qty: parseFloat(input.value) || 0
+                    });
+                }
+            });
+
+            return {
+                warehouse: document.getElementById('warehouse').value,
+                item_group: document.getElementById('item_group').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('warehouse').value) {
+                alert('Please select a warehouse');
+                return false;
+            }
+            const counted = document.querySelectorAll('.count-input').length;
+            const filled = [...document.querySelectorAll('.count-input')].filter(i => i.value !== '').length;
+            if (filled === 0) {
+                alert('Please enter at least one counted quantity');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data) || data.data) {
+                renderItems(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

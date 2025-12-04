@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .serial-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .info-item { padding: 8px; }
+        .info-label { font-size: 12px; color: #666; }
+        .info-value { font-weight: bold; }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .history-table th, .history-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .history-table th { background: #f5f5f5; }
+        .status-active { color: #28a745; }
+        .status-delivered { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="serial_no">Serial Number <span class="required">*</span></label>
+                <select id="serial_no" name="serial_no" required onchange="loadHistory()"
+                        data-fetch-endpoint="/api/erp/inventory/serial-nos">
+                    <option value="">Select Serial Number</option>
+                </select>
+            </div>
+
+            <div id="serialInfo" class="serial-info" style="display: none;">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Item</div>
+                        <div class="info-value" id="info_item">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Status</div>
+                        <div class="info-value" id="info_status">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Warehouse</div>
+                        <div class="info-value" id="info_warehouse">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Company</div>
+                        <div class="info-value" id="info_company">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="historyContainer" style="display: none;">
+                <h4>Transaction History</h4>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Document</th>
+                            <th>Type</th>
+                            <th>Warehouse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadHistory() {
+            const serialNo = document.getElementById('serial_no').value;
+            if (!serialNo) {
+                document.getElementById('serialInfo').style.display = 'none';
+                document.getElementById('historyContainer').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/serial-no/${serialNo}/history` }, '*');
+        }
+
+        function renderHistory(data) {
+            document.getElementById('info_item').textContent = data.item_code || '-';
+            document.getElementById('info_status').textContent = data.status || '-';
+            document.getElementById('info_status').className = 'info-value status-' + (data.status || '').toLowerCase();
+            document.getElementById('info_warehouse').textContent = data.warehouse || '-';
+            document.getElementById('info_company').textContent = data.company || '-';
+
+            const tbody = document.getElementById('historyBody');
+            tbody.innerHTML = '';
+
+            const transactions = data.transactions || [];
+            transactions.forEach(txn => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${txn.posting_date || '-'}</td>
+                    <td>${txn.voucher_no || '-'}</td>
+                    <td>${txn.voucher_type || '-'}</td>
+                    <td>${txn.warehouse || '-'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#666;">No transactions found</td></tr>';
+            }
+
+            document.getElementById('serialInfo').style.display = 'block';
+            document.getElementById('historyContainer').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { serial_no: document.getElementById('serial_no').value };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('serial_no').value) {
+                alert('Please select a serial number');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.item_code !== undefined || data.transactions !== undefined) {
+                renderHistory(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

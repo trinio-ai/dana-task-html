@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item": {"type": "string", "minLength": 1}, "item_tax_template": {"type": "string"}, "purchase_tax_template": {"type": "string"}, "is_zero_rated": {"type": "boolean"}, "tax_category": {"type": "string"}}, "required": ["item"]}

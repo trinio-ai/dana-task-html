@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .filters { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .invoices-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .invoices-table th, .invoices-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .invoices-table th { background: #f5f5f5; }
+        .invoices-table input[type="number"] { width: 100px; }
+        .summary { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
+        .total { font-size: 1.2em; font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="filters">
+                <div class="form-field">
+                    <label for="payment_type">Payment Type <span class="required">*</span></label>
+                    <select id="payment_type" name="payment_type" required onchange="loadInvoices()">
+                        <option value="">Select Type</option>
+                        <option value="Pay">Pay Suppliers</option>
+                        <option value="Receive">Receive from Customers</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="posting_date">Payment Date <span class="required">*</span></label>
+                    <input type="date" id="posting_date" name="posting_date" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="bank_account">Bank Account <span class="required">*</span></label>
+                    <select id="bank_account" name="bank_account" required data-fetch-endpoint="/api/erp/accounts?account_type=Bank">
+                        <option value="">Select Bank Account</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="due_date_filter">Due Before</label>
+                    <input type="date" id="due_date_filter" name="due_date_filter" onchange="loadInvoices()">
+                </div>
+            </div>
+
+            <h4>Outstanding Invoices</h4>
+            <div style="margin-bottom: 10px;">
+                <button type="button" onclick="selectAll()">Select All</button>
+                <button type="button" onclick="selectNone()">Select None</button>
+                <button type="button" onclick="selectOverdue()">Select Overdue</button>
+            </div>
+
+            <table class="invoices-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllCheck" onchange="toggleAll(this)"></th>
+                        <th>Invoice</th>
+                        <th>Party</th>
+                        <th>Date</th>
+                        <th>Due Date</th>
+                        <th>Outstanding</th>
+                        <th>Pay Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="invoicesBody">
+                    <tr><td colspan="7">Select payment type to load outstanding invoices</td></tr>
+                </tbody>
+            </table>
+
+            <div class="summary">
+                <div class="summary-row">
+                    <span>Selected Invoices:</span>
+                    <span id="selected_count">0</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total Payment Amount:</span>
+                    <span id="total_amount">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        let invoices = [];
+
+        function loadInvoices() {
+            const paymentType = document.getElementById('payment_type').value;
+            if (!paymentType) return;
+
+            const msg = {
+                type: 'fetchData',
+                filters: {
+                    payment_type: paymentType,
+                    due_date: document.getElementById('due_date_filter').value
+                }
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function toggleAll(checkbox) {
+            document.querySelectorAll('#invoicesBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = checkbox.checked;
+                updateRowAmount(cb);
+            });
+            calculateTotal();
+        }
+
+        function selectAll() {
+            document.querySelectorAll('#invoicesBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+                updateRowAmount(cb);
+            });
+            calculateTotal();
+        }
+
+        function selectNone() {
+            document.querySelectorAll('#invoicesBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                updateRowAmount(cb);
+            });
+            calculateTotal();
+        }
+
+        function selectOverdue() {
+            const today = new Date().toISOString().split('T')[0];
+            document.querySelectorAll('#invoicesBody tr[data-invoice]').forEach(row => {
+                const dueDate = row.dataset.dueDate;
+                const cb = row.querySelector('input[type="checkbox"]');
+                cb.checked = dueDate < today;
+                updateRowAmount(cb);
+            });
+            calculateTotal();
+        }
+
+        function updateRowAmount(checkbox) {
+            const row = checkbox.closest('tr');
+            const amountInput = row.querySelector('[name="amount"]');
+            if (checkbox.checked) {
+                amountInput.value = row.dataset.outstanding;
+            } else {
+                amountInput.value = 0;
+            }
+        }
+
+        function calculateTotal() {
+            let total = 0, count = 0;
+            document.querySelectorAll('#invoicesBody tr[data-invoice]').forEach(row => {
+                const amount = parseFloat(row.querySelector('[name="amount"]').value) || 0;
+                if (amount > 0) {
+                    total += amount;
+                    count++;
+                }
+            });
+            document.getElementById('total_amount').textContent = total.toFixed(2);
+            document.getElementById('selected_count').textContent = count;
+        }
+
+        function getTaskInput() {
+            const selectedInvoices = [];
+            document.querySelectorAll('#invoicesBody tr[data-invoice]').forEach(row => {
+                const amount = parseFloat(row.querySelector('[name="amount"]').value) || 0;
+                if (amount > 0) {
+                    selectedInvoices.push({
+                        invoice_type: row.dataset.invoiceType,
+                        invoice_name: row.dataset.invoice,
+                        party: row.dataset.party,
+                        amount: amount
+                    });
+                }
+            });
+            return {
+                payment_type: document.getElementById('payment_type').value,
+                posting_date: document.getElementById('posting_date').value,
+                bank_account: document.getElementById('bank_account').value,
+                invoices: selectedInvoices
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.payment_type) { alert('Please select payment type'); return false; }
+            if (!data.posting_date) { alert('Please select payment date'); return false; }
+            if (!data.bank_account) { alert('Please select bank account'); return false; }
+            if (data.invoices.length === 0) { alert('Please select at least one invoice'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.invoices && data.invoices.length > 0) {
+                invoices = data.invoices;
+                const tbody = document.getElementById('invoicesBody');
+                tbody.innerHTML = '';
+                data.invoices.forEach(inv => {
+                    const row = document.createElement('tr');
+                    row.dataset.invoice = inv.name;
+                    row.dataset.invoiceType = inv.doctype || 'Purchase Invoice';
+                    row.dataset.party = inv.party;
+                    row.dataset.outstanding = inv.outstanding_amount;
+                    row.dataset.dueDate = inv.due_date || '';
+                    row.innerHTML = `
+                        <td><input type="checkbox" onchange="updateRowAmount(this); calculateTotal()"></td>
+                        <td>${inv.name}</td>
+                        <td>${inv.party_name || inv.party}</td>
+                        <td>${inv.posting_date}</td>
+                        <td>${inv.due_date || '-'}</td>
+                        <td>${(inv.outstanding_amount || 0).toFixed(2)}</td>
+                        <td><input type="number" name="amount" min="0" max="${inv.outstanding_amount}" step="0.01" value="0" onchange="calculateTotal()"></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                document.getElementById('invoicesBody').innerHTML = '<tr><td colspan="7">No outstanding invoices found</td></tr>';
+            }
+            calculateTotal();
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

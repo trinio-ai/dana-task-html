@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="routing_id">Routing <span class="required">*</span></label>
+                <select id="routing_id" name="routing_id" required data-fetch-endpoint="/api/erp/routings">
+                    <option value="">Select routing</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Operation Sequence <span class="required">*</span></label>
+                <small class="help-text">Drag and drop rows to reorder operations, or update sequence numbers manually</small>
+                <table class="child-table" data-table-name="operation_sequences">
+                    <thead>
+                        <tr>
+                            <th>Operation ID <span class="required">*</span></th>
+                            <th>Operation Name</th>
+                            <th>New Sequence <span class="required">*</span></th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be loaded from routing selection -->
+                    </tbody>
+                </table>
+                <div class="table-actions">
+                    <button type="button" class="btn btn-add-row" onclick="addTableRow(this)">Add Row</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Task-specific logic only - dropdown population is handled by TaskRenderer
+
+        // Get task input data (required by DANA Task interface)
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle child table
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    if (Object.keys(rowData).length > 0) {
+                        rows.push(rowData);
+                    }
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Set task input (pre-populate form) - required by DANA Task interface
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Validate form
+        function validateTaskInput() {
+            let isValid = true;
+
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Expose functions for DANA Task interface
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

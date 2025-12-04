@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .delivery-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 10px; }
+        .items-table th { background: #f5f5f5; }
+        .warning-box { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="return_against">Original Delivery Note <span class="required">*</span></label>
+                <select id="return_against" name="return_against" required onchange="loadDeliveryNote()"
+                        data-fetch-endpoint="/api/erp/selling/delivery-notes?docstatus=1&is_return=0">
+                    <option value="">Select Delivery Note</option>
+                </select>
+            </div>
+
+            <div class="delivery-info" id="deliveryInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Original Delivery Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>% Returned:</span>
+                    <span id="info_returned">-</span>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="posting_date">Return Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <div class="form-field">
+                <label for="return_reason">Return Reason <span class="required">*</span></label>
+                <select id="return_reason" name="return_reason" required>
+                    <option value="">Select Reason</option>
+                    <option value="Defective">Defective Product</option>
+                    <option value="Wrong Item">Wrong Item Delivered</option>
+                    <option value="Damaged">Damaged in Transit</option>
+                    <option value="Quality">Quality Issues</option>
+                    <option value="Customer Request">Customer Request</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <h4>Items to Return</h4>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Return</th>
+                        <th>Item</th>
+                        <th>Delivered</th>
+                        <th>Already Returned</th>
+                        <th>Returnable</th>
+                        <th>Return Qty</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsBody">
+                </tbody>
+            </table>
+
+            <div class="warning-box">
+                <strong>Note:</strong> Creating a return will:
+                <ul>
+                    <li>Receive items back into the warehouse</li>
+                    <li>Create a credit note if invoiced</li>
+                    <li>Update the original delivery note status</li>
+                </ul>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let deliveryItems = [];
+
+        function loadDeliveryNote() {
+            const deliveryNote = document.getElementById('return_against').value;
+            if (!deliveryNote) {
+                document.getElementById('deliveryInfo').style.display = 'none';
+                document.getElementById('itemsBody').innerHTML = '';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/delivery-notes/${deliveryNote}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderDelivery(data) {
+            document.getElementById('info_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_date').textContent = data.posting_date || '-';
+            document.getElementById('info_returned').textContent = (data.per_returned || 0).toFixed(1) + '%';
+            document.getElementById('deliveryInfo').style.display = 'block';
+
+            deliveryItems = data.items || [];
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = deliveryItems.map((item, idx) => {
+                const delivered = item.qty || 0;
+                const returned = item.returned_qty || 0;
+                const returnable = delivered - returned;
+                return `
+                    <tr>
+                        <td style="text-align: center;">
+                            <input type="checkbox" id="return_${idx}" ${returnable > 0 ? 'checked' : ''} ${returnable <= 0 ? 'disabled' : ''}>
+                        </td>
+                        <td>${item.item_name || item.item_code}</td>
+                        <td>${delivered}</td>
+                        <td>${returned}</td>
+                        <td>${returnable}</td>
+                        <td>
+                            <input type="number" id="qty_${idx}" value="${returnable}" min="0" max="${returnable}"
+                                   style="width: 80px;" ${returnable <= 0 ? 'disabled' : ''}>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getTaskInput() {
+            const items = [];
+            deliveryItems.forEach((item, idx) => {
+                const checkbox = document.getElementById(`return_${idx}`);
+                const qtyInput = document.getElementById(`qty_${idx}`);
+                if (checkbox && checkbox.checked && qtyInput) {
+                    const qty = parseFloat(qtyInput.value) || 0;
+                    if (qty > 0) {
+                        items.push({
+                            item_code: item.item_code,
+                            qty: qty,
+                            dn_detail: item.name
+                        });
+                    }
+                }
+            });
+
+            return {
+                return_against: document.getElementById('return_against').value,
+                posting_date: document.getElementById('posting_date').value,
+                return_reason: document.getElementById('return_reason').value,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.return_against) { alert('Please select a delivery note'); return false; }
+            if (!data.posting_date) { alert('Please enter return date'); return false; }
+            if (!data.return_reason) { alert('Please select return reason'); return false; }
+            if (data.items.length === 0) { alert('Please select items to return'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.delivery_note || data.name) {
+                renderDelivery(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('return_against');
+                select.innerHTML = '<option value="">Select Delivery Note</option>' +
+                    items.map(d => `<option value="${d.name}">${d.label || d.name}</option>`).join('');
+            }
+        }
+
+        // Set default date
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

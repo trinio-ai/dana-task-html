@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th, .results-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .results-table th { background: #f5f5f5; }
+        .results-table tr:hover { background: #f9f9f9; }
+        .supplier-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .supplier-info h4 { margin: 0 0 10px 0; }
+        .info-row { display: flex; gap: 30px; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label { font-size: 0.85em; color: #6c757d; }
+        .info-value { font-weight: bold; }
+        .no-results { text-align: center; padding: 40px; color: #666; }
+        .lead-time { white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required onchange="loadSupplierItems()"
+                        data-fetch-endpoint="/api/erp/buying/suppliers">
+                    <option value="">Select Supplier</option>
+                </select>
+            </div>
+
+            <div class="supplier-info" id="supplierInfo" style="display: none;">
+                <h4 id="supplier_name">-</h4>
+                <div class="info-row">
+                    <div class="info-item">
+                        <span class="info-label">Total Items</span>
+                        <span class="info-value" id="total_items">0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Avg Lead Time</span>
+                        <span class="info-value" id="avg_lead_time">- days</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Default Currency</span>
+                        <span class="info-value" id="currency">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="resultsContainer">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Supplier Part No</th>
+                            <th>Last Rate</th>
+                            <th>Lead Time</th>
+                            <th>Last Purchase</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let allData = [];
+
+        function loadSupplierItems() {
+            const supplier = document.getElementById('supplier').value;
+            if (!supplier) {
+                document.getElementById('supplierInfo').style.display = 'none';
+                document.getElementById('resultsBody').innerHTML = '';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/suppliers/${supplier}/items`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderResults(data, supplierData) {
+            document.getElementById('supplier_name').textContent = supplierData?.supplier_name || 'Supplier Items';
+            document.getElementById('total_items').textContent = data.length;
+            document.getElementById('currency').textContent = supplierData?.default_currency || '-';
+
+            if (data.length > 0) {
+                const leadTimes = data.filter(d => d.lead_time).map(d => d.lead_time);
+                const avgLeadTime = leadTimes.length > 0
+                    ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(0)
+                    : '-';
+                document.getElementById('avg_lead_time').textContent = avgLeadTime + ' days';
+            }
+
+            document.getElementById('supplierInfo').style.display = 'block';
+
+            const tbody = document.getElementById('resultsBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-results">No items found for this supplier</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.item_code}</td>
+                    <td>${row.item_name || '-'}</td>
+                    <td>${row.supplier_part_no || '-'}</td>
+                    <td>${row.last_rate ? row.last_rate.toFixed(2) : '-'}</td>
+                    <td class="lead-time">${row.lead_time ? row.lead_time + ' days' : '-'}</td>
+                    <td>${row.last_purchase_date || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getTaskInput() {
+            return {
+                supplier: document.getElementById('supplier').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.supplier) { alert('Please select a supplier'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (Array.isArray(data)) {
+                allData = data;
+                renderResults(data, {});
+            } else if (data.items && Array.isArray(data.items)) {
+                allData = data.items;
+                renderResults(data.items, data);
+            } else if (data.data && Array.isArray(data.data)) {
+                allData = data.data;
+                renderResults(data.data, data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

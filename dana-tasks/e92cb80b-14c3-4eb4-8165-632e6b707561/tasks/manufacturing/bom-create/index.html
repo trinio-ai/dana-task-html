@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">완제품 <span class="required">*</span></label>
+                <select id="item" name="item" required>
+                    <option value="">선택하세요</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="quantity">생산 수량 <span class="required">*</span></label>
+                <input type="number" id="quantity" name="quantity" required min="0" value="1">
+                <small class="help-text">기본값: 1</small>
+            </div>
+            <div class="form-field">
+                <label for="currency">통화 <span class="required">*</span></label>
+                <select id="currency" name="currency" required>
+                    <option value="">선택하세요</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_default" name="is_default">
+                    기본 BOM으로 설정
+                </label>
+                <small class="help-text">체크 시 해당 품목의 다른 BOM은 기본 해제됨</small>
+            </div>
+            <div class="form-field">
+                <label>원자재 <span class="required">*</span></label>
+                <table class="child-table" data-table-name="items">
+                    <thead>
+                        <tr>
+                            <th>자재 코드 <span class="required">*</span></th>
+                            <th>소요량 <span class="required">*</span></th>
+                            <th>스크랩 (%)</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be added dynamically -->
+                    </tbody>
+                </table>
+                <div class="table-actions">
+                    <button type="button" class="btn btn-add-row" onclick="addTableRow(this)">행 추가</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Task-specific logic only - dropdown population is handled by TaskRenderer
+
+        // Get task input data (required by DANA Task interface)
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle child table
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    if (Object.keys(rowData).length > 0) {
+                        rows.push(rowData);
+                    }
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Set task input (pre-populate form) - required by DANA Task interface
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(\`[name="\${key}"]\`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Validate form
+        function validateTaskInput() {
+            let isValid = true;
+
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Expose functions for DANA Task interface
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

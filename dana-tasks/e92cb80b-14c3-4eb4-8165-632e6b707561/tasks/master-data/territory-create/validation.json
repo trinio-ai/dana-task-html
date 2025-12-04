@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"territory_name": {"type": "string"}, "parent_territory": {"type": "string"}, "territory_manager": {"type": "string"}, "is_group": {"type": "boolean"}}, "required": ["territory_name"]}

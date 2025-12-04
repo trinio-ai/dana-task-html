@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"quotation": {"type": "string", "minLength": 1}, "discount_type": {"type": "string", "enum": ["Percentage", "Amount"]}, "discount_value": {"type": "number", "minimum": 0}}, "required": ["quotation", "discount_type", "discount_value"]}

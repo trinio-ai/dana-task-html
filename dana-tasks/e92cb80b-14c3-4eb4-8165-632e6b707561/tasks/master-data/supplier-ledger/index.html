@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required data-dependency-task="supplier-create" data-dependency-label="+ New Supplier">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="from_date">From Date</label>
+                <input type="date" id="from_date" name="from_date">
+            </div>
+
+            <div class="form-field">
+                <label for="to_date">To Date</label>
+                <input type="date" id="to_date" name="to_date">
+            </div>
+
+            <div class="form-field">
+                <label for="entry_type">Entry Type</label>
+                <select id="entry_type" name="entry_type">
+                    <option value="">All Types</option>
+                    <option value="Purchase Invoice">Purchase Invoices</option>
+                    <option value="Payment">Payments</option>
+                    <option value="Debit Note">Debit Notes</option>
+                    <option value="Credit Note">Credit Notes</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show_opening_balance" name="show_opening_balance" checked>
+                    <span>Show Opening Balance</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'show_opening_balance') {
+                    data[key] = value;
+                }
+            }
+            data.show_opening_balance = document.getElementById('show_opening_balance').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            const fromDate = document.getElementById('from_date').value;
+            const toDate = document.getElementById('to_date').value;
+            if (fromDate && toDate && fromDate > toDate) {
+                errors.push('From date must be before To date');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

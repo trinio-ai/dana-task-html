@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="from_uom">From UOM <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('uom-create')">+ New UOM</button>
+                </div>
+                <select id="from_uom" name="from_uom" required data-fetch-endpoint="/api/erp/uoms" data-dependency-task="uom-create" data-dependency-label="+ New UOM">
+                    <option value="">Select UOM</option>
+                </select>
+                <small class="help-text">Source unit of measure</small>
+            </div>
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="to_uom">To UOM <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('uom-create')">+ New UOM</button>
+                </div>
+                <select id="to_uom" name="to_uom" required data-fetch-endpoint="/api/erp/uoms" data-dependency-task="uom-create" data-dependency-label="+ New UOM">
+                    <option value="">Select UOM</option>
+                </select>
+                <small class="help-text">Target unit of measure</small>
+            </div>
+            <div class="form-field">
+                <label for="conversion_factor">Conversion Factor <span class="required">*</span></label>
+                <input type="number" id="conversion_factor" name="conversion_factor" required step="0.000001" min="0.000001">
+                <small class="help-text">1 [From UOM] = X [To UOM]. Example: 1 Box = 12 Pieces, enter 12</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'uom-conversion-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert numeric fields
+            if (data.conversion_factor) {
+                data.conversion_factor = parseFloat(data.conversion_factor);
+            }
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = 'This field is required';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            // Validate same UOM not selected
+            const fromUom = document.getElementById('from_uom').value;
+            const toUom = document.getElementById('to_uom').value;
+            if (fromUom && toUom && fromUom === toUom) {
+                const field = document.getElementById('to_uom').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'From and To UOM must be different';
+                if (!field.querySelector('.error-message')) {
+                    field.appendChild(errorMsg);
+                }
+                isValid = false;
+            }
+
+            // Validate conversion factor is positive
+            const factor = parseFloat(document.getElementById('conversion_factor').value);
+            if (factor <= 0) {
+                const field = document.getElementById('conversion_factor').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Conversion factor must be greater than 0';
+                if (!field.querySelector('.error-message')) {
+                    field.appendChild(errorMsg);
+                }
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .invoice-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .discount-preview { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .total-highlight { font-size: 1.2em; font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_invoice">Sales Invoice <span class="required">*</span></label>
+                <select id="sales_invoice" name="sales_invoice" required data-fetch-endpoint="/api/erp/sales-invoices?docstatus=0">
+                    <option value="">Select Draft Invoice</option>
+                </select>
+            </div>
+
+            <div id="invoiceInfo" class="invoice-info" style="display: none;">
+                <h4>Invoice Summary</h4>
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Net Total (before discount):</span>
+                    <span id="net_total">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Existing Discount:</span>
+                    <span id="existing_discount">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Current Grand Total:</span>
+                    <span id="grand_total">0.00</span>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="discount_type">Discount Type <span class="required">*</span></label>
+                <select id="discount_type" name="discount_type" required>
+                    <option value="Percentage">Percentage (%)</option>
+                    <option value="Amount">Fixed Amount</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="discount_value">Discount Value <span class="required">*</span></label>
+                <input type="number" id="discount_value" name="discount_value" min="0" step="0.01" required>
+                <small class="help-text" id="discount_help">Enter percentage (e.g., 10 for 10%)</small>
+            </div>
+
+            <div class="form-field">
+                <label for="discount_reason">Reason for Discount</label>
+                <textarea id="discount_reason" name="discount_reason" rows="2" placeholder="e.g., Bulk order discount, Loyalty reward"></textarea>
+            </div>
+
+            <div id="discountPreview" class="discount-preview" style="display: none;">
+                <h4>After Discount</h4>
+                <div class="info-row">
+                    <span>Additional Discount:</span>
+                    <span id="new_discount">0.00</span>
+                </div>
+                <div class="info-row total-highlight">
+                    <span>New Grand Total:</span>
+                    <span id="new_grand_total">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let netTotal = 0;
+
+        document.getElementById('discount_type').addEventListener('change', function() {
+            const help = document.getElementById('discount_help');
+            help.textContent = this.value === 'Percentage'
+                ? 'Enter percentage (e.g., 10 for 10%)'
+                : 'Enter fixed discount amount';
+            calculateDiscount();
+        });
+
+        document.getElementById('discount_value').addEventListener('input', calculateDiscount);
+
+        function calculateDiscount() {
+            const type = document.getElementById('discount_type').value;
+            const value = parseFloat(document.getElementById('discount_value').value) || 0;
+
+            let discountAmount = 0;
+            if (type === 'Percentage') {
+                discountAmount = netTotal * (value / 100);
+            } else {
+                discountAmount = value;
+            }
+
+            const newTotal = Math.max(0, netTotal - discountAmount);
+
+            document.getElementById('new_discount').textContent = discountAmount.toFixed(2);
+            document.getElementById('new_grand_total').textContent = newTotal.toFixed(2);
+            document.getElementById('discountPreview').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                sales_invoice: document.getElementById('sales_invoice').value,
+                discount_type: document.getElementById('discount_type').value,
+                discount_value: parseFloat(document.getElementById('discount_value').value) || 0,
+                discount_reason: document.getElementById('discount_reason').value
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('sales_invoice').value) {
+                alert('Please select an invoice');
+                return false;
+            }
+            const value = parseFloat(document.getElementById('discount_value').value) || 0;
+            if (value <= 0) {
+                alert('Please enter a valid discount value');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.sales_invoice) document.getElementById('sales_invoice').value = data.sales_invoice;
+            if (data.customer) {
+                document.getElementById('customer').textContent = data.customer_name || data.customer;
+                netTotal = data.net_total || data.total || 0;
+                document.getElementById('net_total').textContent = netTotal.toFixed(2);
+                document.getElementById('existing_discount').textContent = (data.discount_amount || 0).toFixed(2);
+                document.getElementById('grand_total').textContent = (data.grand_total || netTotal).toFixed(2);
+                document.getElementById('invoiceInfo').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

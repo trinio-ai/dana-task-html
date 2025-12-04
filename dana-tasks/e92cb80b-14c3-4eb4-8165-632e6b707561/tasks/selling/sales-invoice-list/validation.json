@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"customer": {"type": "string"}, "from_date": {"type": "string"}, "to_date": {"type": "string"}, "status": {"type": "string", "enum": ["전체", "초안", "제출됨", "결제 대기", "결제 완료", "취소"]}, "payment_status": {"type": "string", "enum": ["전체", "미결제", "일부 결제", "결제 완료"]}}, "required": []}

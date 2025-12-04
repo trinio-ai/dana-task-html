@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"material_request": {"type": "string", "minLength": 1}, "supplier": {"type": "string", "minLength": 1}, "schedule_date": {"type": "string", "format": "date"}}, "required": ["material_request", "supplier"]}

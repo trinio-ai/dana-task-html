@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .child-table { width: 100%; table-layout: fixed; font-size: 13px; }
+        .child-table th, .child-table td { padding: 4px; }
+        .child-table th:nth-child(1) { width: 32%; }  /* 품목 */
+        .child-table th:nth-child(2) { width: 14%; }  /* 수량 */
+        .child-table th:nth-child(3) { width: 18%; }  /* 단가 */
+        .child-table th:nth-child(4) { width: 28%; }  /* 계정 */
+        .child-table th:nth-child(5) { width: 8%; }   /* 삭제 */
+        .child-table select, .child-table input { width: 100%; box-sizing: border-box; font-size: 12px; padding: 4px; }
+        .child-table input[type="number"] { text-align: right; }
+        .btn-delete { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+        .btn-delete:hover { color: #a71d2a; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="customer">고객 <span class="required">*</span></label>
+  <select id="customer" name="customer" required data-fetch-endpoint="/api/erp/customers">
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="posting_date">송장일 <span class="required">*</span></label>
+  <input type="date" id="posting_date" name="posting_date" required>
+</div>
+<div class="form-field">
+  <label for="due_date">만기일 <span class="required">*</span></label>
+  <input type="date" id="due_date" name="due_date" required>
+  <small class="help-text">결제 조건 기반 기본값</small>
+</div>
+<div class="form-field">
+  <label class="checkbox-label">
+    <input type="checkbox" id="update_stock" name="update_stock">
+    재고 업데이트
+  </label>
+  <small class="help-text">체크 시 재고 원장 자동 생성</small>
+</div>
+<div class="form-field">
+  <label>품목 <span class="required">*</span></label>
+  <table class="child-table" data-table-name="items">
+    <thead>
+      <tr>
+        <th>품목</th>
+        <th>수량</th>
+        <th>단가</th>
+        <th>계정</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Rows will be added dynamically -->
+    </tbody>
+  </table>
+  <div class="table-actions">
+    <button type="button" class="btn btn-add-row" onclick="addTableRow(this)">행 추가</button>
+  </div>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'sales-invoice-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Populate dropdown options
+        function populateDropdowns(options) {
+            if (!options) return;
+
+            // Customer dropdown
+            if (options.customer) {
+                const select = document.getElementById('customer');
+                if (select) {
+                    select.innerHTML = '<option value="">선택하세요</option>' +
+                        options.customer.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+                }
+            }
+
+            // Item code dropdown (for table rows)
+            if (options.item_code) {
+                window._itemOptions = options.item_code;
+            }
+
+            // Income account dropdown (for table rows)
+            if (options.income_account) {
+                window._incomeAccountOptions = options.income_account;
+            }
+
+            // Cost center dropdown (for table rows)
+            if (options.cost_center) {
+                window._costCenterOptions = options.cost_center;
+            }
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Handle nested data structure from API
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            // Populate dropdowns first
+            populateDropdowns(options);
+
+            // Set default values
+            Object.keys(defaults).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!defaults[key];
+                    } else {
+                        input.value = defaults[key];
+                    }
+                }
+            });
+
+            // Set any direct values
+            Object.keys(data).forEach(key => {
+                if (key === 'options' || key === 'defaults' || key === 'data') return;
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Add table row for items
+        function addTableRow(btn) {
+            const table = btn.closest('.form-field').querySelector('.child-table tbody');
+            const row = document.createElement('tr');
+
+            // Build item_code options
+            const itemOptions = (window._itemOptions || [])
+                .map(opt => `<option value="${opt.value}">${opt.label}</option>`)
+                .join('');
+
+            // Build income_account options
+            const incomeAccountOptions = (window._incomeAccountOptions || [])
+                .map(opt => `<option value="${opt.value}">${opt.label}</option>`)
+                .join('');
+
+            // Build cost_center options
+            const costCenterOptions = (window._costCenterOptions || [])
+                .map(opt => `<option value="${opt.value}">${opt.label}</option>`)
+                .join('');
+
+            row.innerHTML = `
+                <td>
+                    <select name="item_code" required>
+                        <option value="">선택</option>
+                        ${itemOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="qty" min="1" value="1" required>
+                </td>
+                <td>
+                    <input type="number" name="rate" min="0" step="1" value="0" required>
+                </td>
+                <td>
+                    <select name="income_account" required>
+                        <option value="">선택</option>
+                        ${incomeAccountOptions}
+                    </select>
+                </td>
+                <td>
+                    <button type="button" class="btn-delete" onclick="deleteTableRow(this)">✕</button>
+                </td>
+            `;
+
+            table.appendChild(row);
+        }
+
+        // Delete table row
+        function deleteTableRow(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+        }
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+        window.addTableRow = addTableRow;
+        window.deleteTableRow = deleteTableRow;
+    </script>
+</body>
+</html>

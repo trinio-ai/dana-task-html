@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .summary-card.total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .summary-value { font-size: 1.5em; font-weight: bold; margin: 5px 0; }
+        .summary-label { font-size: 0.85em; color: #6c757d; }
+        .summary-card.total .summary-label { color: rgba(255,255,255,0.8); }
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th, .results-table td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+        .results-table th { background: #f5f5f5; }
+        .results-table th:first-child, .results-table td:first-child { text-align: left; }
+        .results-table tr:hover { background: #f9f9f9; }
+        .overdue { color: #dc3545; font-weight: bold; }
+        .no-results { text-align: center; padding: 40px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="filters">
+                <div class="form-field">
+                    <label for="supplier">Supplier</label>
+                    <select id="supplier" name="supplier"
+                            data-fetch-endpoint="/api/erp/buying/suppliers">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="as_of_date">As of Date</label>
+                    <input type="date" id="as_of_date" name="as_of_date">
+                </div>
+            </div>
+
+            <div class="summary-cards" id="summaryCards" style="display: none;">
+                <div class="summary-card total">
+                    <div class="summary-label">Total Outstanding</div>
+                    <div class="summary-value" id="total_outstanding">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Current</div>
+                    <div class="summary-value" id="total_current">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">1-30 Days</div>
+                    <div class="summary-value" id="total_30">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">31-60 Days</div>
+                    <div class="summary-value" id="total_60">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">60+ Days</div>
+                    <div class="summary-value overdue" id="total_90">0</div>
+                </div>
+            </div>
+
+            <div id="resultsContainer">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Supplier</th>
+                            <th>Current</th>
+                            <th>1-30 Days</th>
+                            <th>31-60 Days</th>
+                            <th>60+ Days</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let allData = [];
+
+        function formatCurrency(value) {
+            return (value || 0).toFixed(2);
+        }
+
+        function renderResults(data) {
+            const tbody = document.getElementById('resultsBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-results">No outstanding amounts found</td></tr>';
+                document.getElementById('summaryCards').style.display = 'none';
+                return;
+            }
+
+            // Calculate totals
+            let totalOutstanding = 0, totalCurrent = 0, total30 = 0, total60 = 0, total90 = 0;
+            data.forEach(row => {
+                totalOutstanding += row.total_outstanding || 0;
+                totalCurrent += row.current || 0;
+                total30 += row.days_30 || 0;
+                total60 += row.days_60 || 0;
+                total90 += row.days_90_plus || 0;
+            });
+
+            document.getElementById('total_outstanding').textContent = formatCurrency(totalOutstanding);
+            document.getElementById('total_current').textContent = formatCurrency(totalCurrent);
+            document.getElementById('total_30').textContent = formatCurrency(total30);
+            document.getElementById('total_60').textContent = formatCurrency(total60);
+            document.getElementById('total_90').textContent = formatCurrency(total90);
+            document.getElementById('summaryCards').style.display = 'grid';
+
+            tbody.innerHTML = data.map(row => {
+                const hasOverdue = (row.days_90_plus || 0) > 0;
+                return `
+                    <tr>
+                        <td>${row.supplier_name || row.supplier}</td>
+                        <td>${formatCurrency(row.current)}</td>
+                        <td>${formatCurrency(row.days_30)}</td>
+                        <td>${formatCurrency(row.days_60)}</td>
+                        <td class="${hasOverdue ? 'overdue' : ''}">${formatCurrency(row.days_90_plus)}</td>
+                        <td><strong>${formatCurrency(row.total_outstanding)}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getTaskInput() {
+            return {
+                supplier: document.getElementById('supplier').value || null,
+                as_of_date: document.getElementById('as_of_date').value || null
+            };
+        }
+
+        function validateForm() {
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            // Set today's date as default
+            if (!document.getElementById('as_of_date').value) {
+                document.getElementById('as_of_date').value = new Date().toISOString().split('T')[0];
+            }
+            if (Array.isArray(data)) {
+                allData = data;
+                renderResults(data);
+            } else if (data.data && Array.isArray(data.data)) {
+                allData = data.data;
+                renderResults(data.data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

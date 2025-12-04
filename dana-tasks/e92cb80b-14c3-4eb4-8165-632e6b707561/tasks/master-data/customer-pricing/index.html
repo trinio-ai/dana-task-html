@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer">Customer <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="customer" name="customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select customer</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="default_price_list">Default Price List <span class="required">*</span></label>
+                <select id="default_price_list" name="default_price_list" required>
+                    <option value="">Select price list</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="discount_percent">Default Discount (%)</label>
+                <input type="number" id="discount_percent" name="discount_percent" min="0" max="100" step="0.01" value="0">
+                <small>Applied to all items for this customer</small>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="apply_discount_on_rate" name="apply_discount_on_rate">
+                    <span>Apply discount on item rate (not on total)</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            data.discount_percent = parseFloat(data.discount_percent) || 0;
+            data.apply_discount_on_rate = document.getElementById('apply_discount_on_rate').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('customer').value) errors.push('Customer is required');
+            if (!document.getElementById('default_price_list').value) errors.push('Price list is required');
+            const discount = parseFloat(document.getElementById('discount_percent').value);
+            if (discount < 0 || discount > 100) errors.push('Discount must be between 0 and 100');
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

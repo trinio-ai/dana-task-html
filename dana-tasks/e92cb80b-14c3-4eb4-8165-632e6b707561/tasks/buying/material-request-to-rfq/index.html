@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .supplier-checkboxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+        .supplier-checkbox { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .supplier-checkbox input { margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="material_request">Material Request <span class="required">*</span></label>
+                <select id="material_request" name="material_request" required onchange="loadRequest()"
+                        data-fetch-endpoint="/api/erp/buying/material-requests?docstatus=1&material_request_type=Purchase">
+                    <option value="">Select Material Request</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="requestDetails" style="display: none;">
+                <h4>Items to Quote</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Required By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="suppliersSection" style="display: none;">
+                <h4>Select Suppliers <span class="required">*</span></h4>
+                <p>Select one or more suppliers to send the RFQ to:</p>
+                <div class="supplier-checkboxes" id="supplierCheckboxes">
+                </div>
+            </div>
+
+            <div class="form-field" id="messageField" style="display: none; margin-top: 15px;">
+                <label for="message_for_supplier">Message for Suppliers</label>
+                <textarea id="message_for_supplier" name="message_for_supplier" rows="3"
+                          placeholder="Enter any special instructions or requirements for suppliers"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentRequest = null;
+        let supplierOptions = [];
+
+        function loadRequest() {
+            const mrId = document.getElementById('material_request').value;
+            if (!mrId) {
+                document.getElementById('requestDetails').style.display = 'none';
+                document.getElementById('suppliersSection').style.display = 'none';
+                document.getElementById('messageField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/material-requests/${mrId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderRequest(data) {
+            currentRequest = data;
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty} ${item.uom || ''}</td>
+                    <td>${item.schedule_date || '-'}</td>
+                </tr>
+            `).join('');
+
+            // Render supplier checkboxes
+            const checkboxContainer = document.getElementById('supplierCheckboxes');
+            checkboxContainer.innerHTML = supplierOptions.map(s => `
+                <label class="supplier-checkbox">
+                    <input type="checkbox" name="supplier" value="${s.value}">
+                    ${s.label}
+                </label>
+            `).join('');
+
+            document.getElementById('requestDetails').style.display = 'block';
+            document.getElementById('suppliersSection').style.display = 'block';
+            document.getElementById('messageField').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            const suppliers = [];
+            document.querySelectorAll('input[name="supplier"]:checked').forEach(cb => {
+                suppliers.push(cb.value);
+            });
+
+            return {
+                material_request: document.getElementById('material_request').value,
+                suppliers: suppliers,
+                message_for_supplier: document.getElementById('message_for_supplier').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.material_request) { alert('Please select a material request'); return false; }
+            if (data.suppliers.length === 0) { alert('Please select at least one supplier'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options && data.options.supplier) {
+                supplierOptions = data.options.supplier;
+            }
+            if (data.material_request_type) {
+                renderRequest(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

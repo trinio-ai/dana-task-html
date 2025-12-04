@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"work_order_id": {"type": "string", "x-fetch-endpoint": "/api/erp/work-orders", "x-fetch-filter": {"status": ["Not Started", "In Progress"]}, "x-db-column": "work_order_id"}, "check_all_warehouses": {"type": "boolean", "x-db-column": "check_all_warehouses"}}, "required": ["work_order_id"]}

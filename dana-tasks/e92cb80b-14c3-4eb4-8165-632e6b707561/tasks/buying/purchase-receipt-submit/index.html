@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .info-box { background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 8px; margin: 15px 0; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_receipt">Purchase Receipt <span class="required">*</span></label>
+                <select id="purchase_receipt" name="purchase_receipt" required onchange="loadReceipt()"
+                        data-fetch-endpoint="/api/erp/buying/purchase-receipts?docstatus=0">
+                    <option value="">Select Purchase Receipt</option>
+                </select>
+            </div>
+
+            <div class="info-box" id="infoBox" style="display: none;">
+                <strong>Note:</strong> Submitting this receipt will update stock levels in the receiving warehouse.
+            </div>
+
+            <div class="detail-section" id="receiptDetails" style="display: none;">
+                <h4>Receipt Details</h4>
+                <div class="detail-row">
+                    <span>Supplier:</span>
+                    <span id="supplier_name">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Receipt Date:</span>
+                    <span id="posting_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Purchase Order:</span>
+                    <span id="purchase_order">-</span>
+                </div>
+            </div>
+
+            <div id="itemsSection" style="display: none;">
+                <h4>Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Warehouse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentReceipt = null;
+
+        function loadReceipt() {
+            const prId = document.getElementById('purchase_receipt').value;
+            if (!prId) {
+                document.getElementById('infoBox').style.display = 'none';
+                document.getElementById('receiptDetails').style.display = 'none';
+                document.getElementById('itemsSection').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/purchase-receipts/${prId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderReceipt(data) {
+            currentReceipt = data;
+
+            document.getElementById('supplier_name').textContent = data.supplier_name || data.supplier || '-';
+            document.getElementById('posting_date').textContent = data.posting_date || '-';
+            document.getElementById('purchase_order').textContent = data.purchase_order || 'Direct Receipt';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty} ${item.uom || ''}</td>
+                    <td>${(item.rate || 0).toFixed(2)}</td>
+                    <td>${item.warehouse || '-'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('infoBox').style.display = 'block';
+            document.getElementById('receiptDetails').style.display = 'block';
+            document.getElementById('itemsSection').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                purchase_receipt: document.getElementById('purchase_receipt').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.purchase_receipt) { alert('Please select a Purchase Receipt'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.supplier) {
+                renderReceipt(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

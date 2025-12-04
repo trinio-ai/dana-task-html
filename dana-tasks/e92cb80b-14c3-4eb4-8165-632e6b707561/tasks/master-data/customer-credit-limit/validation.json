@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"customer": {"type": "string", "minLength": 1}, "credit_limit": {"type": "number", "minimum": 0}, "payment_terms": {"type": "string"}, "credit_days": {"type": "integer", "minimum": 0, "maximum": 365}, "bypass_credit_limit": {"type": "boolean"}}, "required": ["customer", "credit_limit"]}

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .order-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input { width: 80px; padding: 4px; }
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_order">Sales Order <span class="required">*</span></label>
+                <select id="sales_order" name="sales_order" required data-fetch-endpoint="/api/erp/sales-orders?docstatus=1">
+                    <option value="">Select Submitted Sales Order</option>
+                </select>
+            </div>
+
+            <div id="orderInfo" class="order-info" style="display: none;">
+                <h4>Order Details</h4>
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Order Date:</span>
+                    <span id="order_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Delivery Date:</span>
+                    <span id="delivery_date">-</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> Items from the sales order will be copied to the invoice. You can adjust quantities to bill partially.
+            </div>
+
+            <div class="form-field">
+                <label for="posting_date">Invoice Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <h4>Items to Invoice</h4>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Ordered</th>
+                        <th>Billed</th>
+                        <th>Qty to Bill</th>
+                        <th>Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsBody">
+                    <tr><td colspan="5">Select a sales order to see items</td></tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr[data-item]').forEach(row => {
+                const qtyInput = row.querySelector('[name="qty_to_bill"]');
+                const qty = parseFloat(qtyInput?.value) || 0;
+                if (qty > 0) {
+                    items.push({
+                        item_code: row.dataset.item,
+                        qty: qty,
+                        rate: parseFloat(row.dataset.rate) || 0
+                    });
+                }
+            });
+            return {
+                sales_order: document.getElementById('sales_order').value,
+                posting_date: document.getElementById('posting_date').value,
+                items
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('sales_order').value) {
+                alert('Please select a sales order');
+                return false;
+            }
+            if (!document.getElementById('posting_date').value) {
+                alert('Please select invoice date');
+                return false;
+            }
+            const items = getTaskInput().items;
+            if (items.length === 0) {
+                alert('Please enter quantity for at least one item');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.sales_order) document.getElementById('sales_order').value = data.sales_order;
+            if (data.customer) {
+                document.getElementById('customer').textContent = data.customer_name || data.customer;
+                document.getElementById('order_date').textContent = data.transaction_date || '-';
+                document.getElementById('delivery_date').textContent = data.delivery_date || '-';
+
+                if (data.items && data.items.length > 0) {
+                    const tbody = document.getElementById('itemsBody');
+                    tbody.innerHTML = '';
+                    data.items.forEach(item => {
+                        const remaining = (item.qty || 0) - (item.billed_qty || 0);
+                        const row = document.createElement('tr');
+                        row.dataset.item = item.item_code;
+                        row.dataset.rate = item.rate || 0;
+                        row.innerHTML = `
+                            <td>${item.item_name || item.item_code}</td>
+                            <td>${item.qty}</td>
+                            <td>${item.billed_qty || 0}</td>
+                            <td><input type="number" name="qty_to_bill" min="0" max="${remaining}" value="${remaining}" step="0.01"></td>
+                            <td>${(item.rate || 0).toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+                document.getElementById('orderInfo').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

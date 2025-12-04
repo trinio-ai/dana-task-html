@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="supplier">공급처 <span class="required">*</span></label>
+  <select id="supplier" name="supplier" required data-fetch-endpoint="/api/erp/suppliers" data-fetch-filter='{"disabled": 0}'>
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="transaction_date">주문일 <span class="required">*</span></label>
+  <input type="date" id="transaction_date" name="transaction_date" required>
+  <small class="help-text">기본값: 오늘</small>
+</div>
+<div class="form-field">
+  <label for="warehouse">입고 창고 <span class="required">*</span></label>
+  <select id="warehouse" name="warehouse" required data-fetch-endpoint="/api/erp/warehouses" data-fetch-filter='{"is_group": 0}'>
+    <option value="">선택하세요</option>
+  </select>
+  <small class="help-text">모든 품목의 기본 입고 창고</small>
+</div>
+<div class="form-field">
+  <label>품목 <span class="required">*</span></label>
+  <table class="child-table" data-table-name="items">
+    <thead>
+      <tr>
+        <th>품목 코드 <span class="required">*</span></th>
+        <th>수량 <span class="required">*</span></th>
+        <th>단가 <span class="required">*</span></th>
+        <th>입고 예정일</th>
+        <th>작업</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Rows will be added dynamically -->
+    </tbody>
+  </table>
+  <div class="table-actions">
+    <button type="button" class="btn btn-add-row" onclick="addTableRow(this)">행 추가</button>
+  </div>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'purchase-order-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .print-preview { background: white; border: 1px solid #ddd; padding: 30px; margin-top: 20px; }
+        .company-header { text-align: center; margin-bottom: 30px; }
+        .company-name { font-size: 24px; font-weight: bold; }
+        .document-title { font-size: 18px; color: #666; margin-top: 10px; }
+        .quotation-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .info-block h4 { margin: 0 0 10px 0; color: #333; }
+        .info-block p { margin: 5px 0; color: #666; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 10px; }
+        .items-table th { background: #f5f5f5; text-align: left; }
+        .items-table .amount { text-align: right; }
+        .totals { text-align: right; margin-top: 20px; }
+        .totals-row { display: flex; justify-content: flex-end; gap: 30px; padding: 5px 0; }
+        .grand-total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 10px; }
+        .terms { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .terms h4 { margin: 0 0 10px 0; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        .btn-primary { background: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="quotation">Select Quotation <span class="required">*</span></label>
+                <select id="quotation" name="quotation" required onchange="loadQuotation()"
+                        data-fetch-endpoint="/api/erp/selling/quotations">
+                    <option value="">Select Quotation</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="print_format">Print Format</label>
+                <select id="print_format" name="print_format">
+                    <option value="Standard">Standard</option>
+                    <option value="Modern">Modern</option>
+                    <option value="Classic">Classic</option>
+                </select>
+            </div>
+
+            <div class="print-preview" id="printPreview" style="display: none;">
+                <div class="company-header">
+                    <div class="company-name" id="company_name">Company Name</div>
+                    <div class="document-title">QUOTATION</div>
+                </div>
+
+                <div class="quotation-info">
+                    <div class="info-block">
+                        <h4>Bill To:</h4>
+                        <p id="customer_name">Customer Name</p>
+                        <p id="customer_address">Customer Address</p>
+                    </div>
+                    <div class="info-block" style="text-align: right;">
+                        <p><strong>Quotation #:</strong> <span id="quotation_number">-</span></p>
+                        <p><strong>Date:</strong> <span id="quotation_date">-</span></p>
+                        <p><strong>Valid Until:</strong> <span id="valid_till">-</span></p>
+                    </div>
+                </div>
+
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th class="amount">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+
+                <div class="totals">
+                    <div class="totals-row">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">0.00</span>
+                    </div>
+                    <div class="totals-row">
+                        <span>Discount:</span>
+                        <span id="discount">0.00</span>
+                    </div>
+                    <div class="totals-row">
+                        <span>Tax:</span>
+                        <span id="tax">0.00</span>
+                    </div>
+                    <div class="totals-row grand-total">
+                        <span>Grand Total:</span>
+                        <span id="grand_total">0.00</span>
+                    </div>
+                </div>
+
+                <div class="terms" id="termsSection" style="display: none;">
+                    <h4>Terms & Conditions</h4>
+                    <p id="terms_text"></p>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button type="button" class="btn btn-primary" onclick="window.print()">Print</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadQuotation() {
+            const quotation = document.getElementById('quotation').value;
+            if (!quotation) {
+                document.getElementById('printPreview').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/quotations/${quotation}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderPreview(data) {
+            document.getElementById('quotation_number').textContent = data.name || data.quotation || '-';
+            document.getElementById('quotation_date').textContent = data.transaction_date || '-';
+            document.getElementById('valid_till').textContent = data.valid_till || 'Not specified';
+            document.getElementById('customer_name').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('customer_address').textContent = data.customer_address || '';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map((item, idx) => `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td>${item.item_name || item.item_code}<br><small>${item.description || ''}</small></td>
+                    <td>${item.qty}</td>
+                    <td>${(item.rate || 0).toFixed(2)}</td>
+                    <td class="amount">${(item.amount || 0).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('subtotal').textContent = (data.net_total || data.total || 0).toFixed(2);
+            document.getElementById('discount').textContent = (data.discount_amount || 0).toFixed(2);
+            document.getElementById('tax').textContent = (data.tax_amount || 0).toFixed(2);
+            document.getElementById('grand_total').textContent = (data.grand_total || 0).toFixed(2);
+
+            if (data.terms) {
+                document.getElementById('terms_text').textContent = data.terms;
+                document.getElementById('termsSection').style.display = 'block';
+            }
+
+            document.getElementById('printPreview').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                quotation: document.getElementById('quotation').value,
+                print_format: document.getElementById('print_format').value
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('quotation').value) {
+                alert('Please select a quotation');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.quotation || data.name) {
+                renderPreview(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('quotation');
+                select.innerHTML = '<option value="">Select Quotation</option>' +
+                    items.map(q => `<option value="${q.name}">${q.label || q.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

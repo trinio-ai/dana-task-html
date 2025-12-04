@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="barcode">Barcode <span class="required">*</span></label>
+                <input type="text" id="barcode" name="barcode" required placeholder="Enter or scan barcode">
+            </div>
+
+            <div class="form-field">
+                <label for="barcode_type">Barcode Type</label>
+                <select id="barcode_type" name="barcode_type">
+                    <option value="">Auto-detect</option>
+                    <option value="EAN">EAN-13</option>
+                    <option value="EAN-8">EAN-8</option>
+                    <option value="UPC-A">UPC-A</option>
+                    <option value="UPC-E">UPC-E</option>
+                    <option value="Code-128">Code 128</option>
+                    <option value="Code-39">Code 39</option>
+                    <option value="QR">QR Code</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="uom">UOM</label>
+                <select id="uom" name="uom">
+                    <option value="">Default UOM</option>
+                </select>
+                <small>Associate barcode with specific UOM (e.g., pack, carton)</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            if (!document.getElementById('barcode').value.trim()) {
+                errors.push('Barcode is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

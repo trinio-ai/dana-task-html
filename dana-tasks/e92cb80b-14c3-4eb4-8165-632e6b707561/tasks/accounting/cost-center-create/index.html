@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="cost_center_name">Cost Center Name <span class="required">*</span></label>
+                <input type="text" id="cost_center_name" name="cost_center_name" required>
+                <small class="help-text">E.g., Marketing, Sales, R&D, Production</small>
+            </div>
+            <div class="form-field">
+                <label for="company">Company <span class="required">*</span></label>
+                <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies">
+                    <option value="">Select Company</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="parent_cost_center">Parent Cost Center</label>
+                <select id="parent_cost_center" name="parent_cost_center" data-fetch-endpoint="/api/erp/cost-centers?is_group=1">
+                    <option value="">None (Root Level)</option>
+                </select>
+                <small class="help-text">Select parent for hierarchical organization</small>
+            </div>
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_group" name="is_group">
+                    Is Group
+                </label>
+                <small class="help-text">Check if this cost center will have sub-cost centers</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!validateForm()) return;
+            const formData = getTaskInput();
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'taskSubmit', taskId: 'cost-center-create', data: formData }, '*');
+            }
+        });
+
+        function getTaskInput() {
+            const data = {};
+            ['cost_center_name', 'company', 'parent_cost_center'].forEach(id => {
+                data[id] = document.getElementById(id).value;
+            });
+            data.is_group = document.getElementById('is_group').checked;
+            return data;
+        }
+
+        function validateForm() {
+            let isValid = true;
+            document.querySelectorAll('.form-field').forEach(f => f.classList.remove('error'));
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    input.closest('.form-field')?.classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const el = document.getElementById(key);
+                if (el) el.type === 'checkbox' ? el.checked = !!data[key] : el.value = data[key];
+            });
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

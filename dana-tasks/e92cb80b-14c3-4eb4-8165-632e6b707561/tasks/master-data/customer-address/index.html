@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer">Customer <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="customer" name="customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select customer</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="address_title">Address Title <span class="required">*</span></label>
+                <input type="text" id="address_title" name="address_title" required placeholder="e.g., Head Office, Warehouse">
+            </div>
+
+            <div class="form-field">
+                <label for="address_type">Address Type <span class="required">*</span></label>
+                <select id="address_type" name="address_type" required>
+                    <option value="Billing">Billing</option>
+                    <option value="Shipping">Shipping</option>
+                    <option value="Office">Office</option>
+                    <option value="Warehouse">Warehouse</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <fieldset>
+                <legend>Address Details</legend>
+
+                <div class="form-field">
+                    <label for="address_line1">Address Line 1 <span class="required">*</span></label>
+                    <input type="text" id="address_line1" name="address_line1" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="address_line2">Address Line 2</label>
+                    <input type="text" id="address_line2" name="address_line2">
+                </div>
+
+                <div class="form-field">
+                    <label for="city">City <span class="required">*</span></label>
+                    <input type="text" id="city" name="city" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="state">State / Province</label>
+                    <input type="text" id="state" name="state">
+                </div>
+
+                <div class="form-field">
+                    <label for="pincode">Postal Code</label>
+                    <input type="text" id="pincode" name="pincode">
+                </div>
+
+                <div class="form-field">
+                <label for="country">Country <span class="required">*</span></label>
+                <select id="country" name="country" required>
+                    <option value="">Select country</option>
+                </select>
+            </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Preferences</legend>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_primary_address" name="is_primary_address">
+                        <span>Set as primary address</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_shipping_address" name="is_shipping_address">
+                        <span>Use for shipping</span>
+                    </label>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            data.is_primary_address = document.getElementById('is_primary_address').checked;
+            data.is_shipping_address = document.getElementById('is_shipping_address').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('customer').value) errors.push('Customer is required');
+            if (!document.getElementById('address_title').value) errors.push('Address title is required');
+            if (!document.getElementById('address_line1').value) errors.push('Address line 1 is required');
+            if (!document.getElementById('city').value) errors.push('City is required');
+            if (!document.getElementById('country').value) errors.push('Country is required');
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

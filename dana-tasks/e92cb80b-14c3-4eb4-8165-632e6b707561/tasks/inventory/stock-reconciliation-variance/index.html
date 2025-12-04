@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .summary-value { font-size: 24px; font-weight: bold; }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .variance-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .variance-table th, .variance-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .variance-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="reconciliation_id">Select Reconciliation <span class="required">*</span></label>
+                <select id="reconciliation_id" name="reconciliation_id" required onchange="loadVariance()"
+                        data-fetch-endpoint="/api/erp/inventory/stock-reconciliations?docstatus=0">
+                    <option value="">Select Draft Reconciliation</option>
+                </select>
+            </div>
+
+            <div class="summary-cards" id="summaryCards" style="display: none;">
+                <div class="summary-card">
+                    <div class="summary-value" id="totalItems">0</div>
+                    <div>Total Items</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value positive" id="positiveVariance">0</div>
+                    <div>Surplus Items</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value negative" id="negativeVariance">0</div>
+                    <div>Shortage Items</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value" id="totalDifference">0</div>
+                    <div>Value Difference</div>
+                </div>
+            </div>
+
+            <div id="varianceContainer" style="display: none;">
+                <table class="variance-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">System Qty</th>
+                            <th class="text-right">Counted Qty</th>
+                            <th class="text-right">Variance</th>
+                            <th class="text-right">Rate</th>
+                            <th class="text-right">Value Diff</th>
+                        </tr>
+                    </thead>
+                    <tbody id="varianceBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadVariance() {
+            const id = document.getElementById('reconciliation_id').value;
+            if (!id) {
+                document.getElementById('summaryCards').style.display = 'none';
+                document.getElementById('varianceContainer').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/stock-reconciliations/${id}/variance` }, '*');
+        }
+
+        function renderVariance(data) {
+            const items = data.items || data.data || [];
+            const tbody = document.getElementById('varianceBody');
+            tbody.innerHTML = '';
+
+            let positive = 0, negative = 0, totalDiff = 0;
+
+            items.forEach(item => {
+                const variance = (item.qty || 0) - (item.current_qty || 0);
+                const valueDiff = variance * (item.valuation_rate || 0);
+                totalDiff += valueDiff;
+
+                if (variance > 0) positive++;
+                else if (variance < 0) negative++;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.warehouse}</td>
+                    <td class="text-right">${(item.current_qty || 0).toLocaleString()}</td>
+                    <td class="text-right">${(item.qty || 0).toLocaleString()}</td>
+                    <td class="text-right ${variance > 0 ? 'positive' : variance < 0 ? 'negative' : ''}">
+                        ${variance > 0 ? '+' : ''}${variance.toLocaleString()}
+                    </td>
+                    <td class="text-right">${(item.valuation_rate || 0).toLocaleString()}</td>
+                    <td class="text-right ${valueDiff > 0 ? 'positive' : valueDiff < 0 ? 'negative' : ''}">
+                        ${valueDiff > 0 ? '+' : ''}${valueDiff.toLocaleString()}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('totalItems').textContent = items.length;
+            document.getElementById('positiveVariance').textContent = positive;
+            document.getElementById('negativeVariance').textContent = negative;
+            document.getElementById('totalDifference').textContent = (totalDiff > 0 ? '+' : '') + totalDiff.toLocaleString();
+            document.getElementById('totalDifference').className = 'summary-value ' + (totalDiff > 0 ? 'positive' : totalDiff < 0 ? 'negative' : '');
+
+            document.getElementById('summaryCards').style.display = 'grid';
+            document.getElementById('varianceContainer').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { reconciliation_id: document.getElementById('reconciliation_id').value };
+        }
+
+        function validateForm() {
+            return !!document.getElementById('reconciliation_id').value;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.items !== undefined) {
+                renderVariance(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('reconciliation_id');
+                select.innerHTML = '<option value="">Select Draft Reconciliation</option>' +
+                    items.map(r => `<option value="${r.name}">${r.name} (${r.posting_date})</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

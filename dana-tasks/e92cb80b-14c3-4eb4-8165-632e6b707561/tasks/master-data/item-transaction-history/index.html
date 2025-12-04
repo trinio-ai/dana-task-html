@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="warehouse">Warehouse</label>
+                <select id="warehouse" name="warehouse">
+                    <option value="">All warehouses</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="from_date">From Date</label>
+                <input type="date" id="from_date" name="from_date">
+            </div>
+
+            <div class="form-field">
+                <label for="to_date">To Date</label>
+                <input type="date" id="to_date" name="to_date">
+            </div>
+
+            <div class="form-field">
+                <label for="voucher_type">Transaction Type</label>
+                <select id="voucher_type" name="voucher_type">
+                    <option value="">All types</option>
+                    <option value="Stock Entry">Stock Entry</option>
+                    <option value="Sales Invoice">Sales Invoice</option>
+                    <option value="Purchase Invoice">Purchase Invoice</option>
+                    <option value="Delivery Note">Delivery Note</option>
+                    <option value="Purchase Receipt">Purchase Receipt</option>
+                    <option value="Stock Reconciliation">Stock Reconciliation</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show_valuation" name="show_valuation">
+                    <span>Show valuation details</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'show_valuation') {
+                    data[key] = value;
+                }
+            }
+            data.show_valuation = document.getElementById('show_valuation').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

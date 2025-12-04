@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .entry-preview { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .accounts-preview { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .accounts-preview th, .accounts-preview td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .accounts-preview th { background: #e9ecef; }
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="journal_entry">Journal Entry <span class="required">*</span></label>
+                <select id="journal_entry" name="journal_entry" required data-fetch-endpoint="/api/erp/journal-entries">
+                    <option value="">Select Journal Entry</option>
+                </select>
+            </div>
+
+            <div id="entryPreview" class="entry-preview" style="display: none;">
+                <h4>Entry Preview</h4>
+                <p><strong>Date:</strong> <span id="previewDate">-</span> | <strong>Type:</strong> <span id="previewType">-</span></p>
+                <table class="accounts-preview">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Debit</th>
+                            <th>Credit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsPreview"></tbody>
+                </table>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> Templates save the account structure for reuse. You can optionally include default amounts.
+            </div>
+
+            <div class="form-field">
+                <label for="template_name">Template Name <span class="required">*</span></label>
+                <input type="text" id="template_name" name="template_name" required placeholder="e.g., Monthly Rent Payment">
+            </div>
+
+            <div class="form-field">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="2" placeholder="What is this template used for?"></textarea>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="save_amounts" name="save_amounts" checked>
+                    Save amounts as defaults (can be changed when using template)
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                journal_entry: document.getElementById('journal_entry').value,
+                template_name: document.getElementById('template_name').value,
+                description: document.getElementById('description').value,
+                save_amounts: document.getElementById('save_amounts').checked
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            ['journal_entry', 'template_name'].forEach(id => {
+                const el = document.getElementById(id);
+                el.closest('.form-field').classList.remove('error');
+                if (!el.value) {
+                    el.closest('.form-field').classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.journal_entry) document.getElementById('journal_entry').value = data.journal_entry;
+            if (data.posting_date) {
+                document.getElementById('previewDate').textContent = data.posting_date;
+                document.getElementById('previewType').textContent = data.entry_type || 'Journal Entry';
+
+                if (data.accounts && data.accounts.length > 0) {
+                    const tbody = document.getElementById('accountsPreview');
+                    tbody.innerHTML = '';
+                    data.accounts.forEach(acc => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${acc.account}</td>
+                            <td>${(acc.debit || 0).toFixed(2)}</td>
+                            <td>${(acc.credit || 0).toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+                document.getElementById('entryPreview').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

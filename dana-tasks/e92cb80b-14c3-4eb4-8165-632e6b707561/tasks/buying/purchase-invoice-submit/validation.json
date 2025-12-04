@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"purchase_invoice": {"type": "string", "minLength": 1}, "confirm_submit": {"type": "boolean", "const": true}}, "required": ["purchase_invoice", "confirm_submit"]}

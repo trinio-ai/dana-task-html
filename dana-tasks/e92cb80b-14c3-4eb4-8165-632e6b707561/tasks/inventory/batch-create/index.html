@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .section-title { font-size: 14px; font-weight: bold; margin: 20px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+        .help-text { font-size: 12px; color: #666; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="batch_id">Batch ID <span class="required">*</span></label>
+                        <input type="text" id="batch_id" name="batch_id" required placeholder="Enter batch ID">
+                        <div class="help-text">Unique identifier for this batch</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="item">Item <span class="required">*</span></label>
+                        <select id="item" name="item" required
+                                data-fetch-endpoint="/api/erp/items?has_batch_no=1">
+                            <option value="">Select Item</option>
+                        </select>
+                        <div class="help-text">Only items with batch tracking enabled</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">Batch Details</div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="manufacturing_date">Manufacturing Date</label>
+                        <input type="date" id="manufacturing_date" name="manufacturing_date">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="expiry_date">Expiry Date</label>
+                        <input type="date" id="expiry_date" name="expiry_date">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="supplier">Supplier</label>
+                        <select id="supplier" name="supplier"
+                                data-fetch-endpoint="/api/erp/suppliers">
+                            <option value="">Select Supplier</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="reference_name">Reference Document</label>
+                        <input type="text" id="reference_name" name="reference_name" placeholder="e.g., PR-00001">
+                        <div class="help-text">Purchase receipt or production order reference</div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                batch_id: document.getElementById('batch_id').value,
+                item: document.getElementById('item').value,
+                manufacturing_date: document.getElementById('manufacturing_date').value || null,
+                expiry_date: document.getElementById('expiry_date').value || null,
+                supplier: document.getElementById('supplier').value || null,
+                reference_name: document.getElementById('reference_name').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('batch_id').value) {
+                alert('Please enter a batch ID');
+                return false;
+            }
+            if (!document.getElementById('item').value) {
+                alert('Please select an item');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.batch_id) document.getElementById('batch_id').value = data.batch_id;
+            if (data.item) document.getElementById('item').value = data.item;
+            if (data.manufacturing_date) document.getElementById('manufacturing_date').value = data.manufacturing_date;
+            if (data.expiry_date) document.getElementById('expiry_date').value = data.expiry_date;
+            if (data.supplier) document.getElementById('supplier').value = data.supplier;
+            if (data.reference_name) document.getElementById('reference_name').value = data.reference_name;
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

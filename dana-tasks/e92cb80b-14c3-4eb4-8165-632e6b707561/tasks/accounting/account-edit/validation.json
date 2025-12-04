@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"account": {"type": "string"}, "account_name": {"type": "string"}, "account_number": {"type": "string"}, "account_type": {"type": "string"}, "parent_account": {"type": "string"}, "disabled": {"type": "boolean"}}, "required": ["account", "account_name"]}

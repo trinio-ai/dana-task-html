@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="account">Select Account <span class="required">*</span></label>
+                <select id="account" name="account" required data-fetch-endpoint="/api/erp/accounts">
+                    <option value="">Select Account</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="account_name">Account Name <span class="required">*</span></label>
+                <input type="text" id="account_name" name="account_name" required>
+            </div>
+            <div class="form-field">
+                <label for="account_number">Account Number</label>
+                <input type="text" id="account_number" name="account_number">
+            </div>
+            <div class="form-field">
+                <label for="account_type">Account Type</label>
+                <select id="account_type" name="account_type">
+                    <option value="">Select Account Type</option>
+                    <option value="Bank">Bank</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Receivable">Receivable</option>
+                    <option value="Payable">Payable</option>
+                    <option value="Stock">Stock</option>
+                    <option value="Tax">Tax</option>
+                    <option value="Fixed Asset">Fixed Asset</option>
+                    <option value="Depreciation">Depreciation</option>
+                    <option value="Expense Account">Expense Account</option>
+                    <option value="Income Account">Income Account</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="parent_account">Parent Account</label>
+                <select id="parent_account" name="parent_account" data-fetch-endpoint="/api/erp/accounts?is_group=1">
+                    <option value="">None (Root Level)</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="disabled" name="disabled">
+                    Disabled
+                </label>
+                <small class="help-text">Disable account to prevent new postings</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!validateForm()) return;
+            const formData = getTaskInput();
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'taskSubmit', taskId: 'account-edit', data: formData }, '*');
+            }
+        });
+
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) data[key] = value;
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => data[cb.name] = cb.checked);
+            return data;
+        }
+
+        function validateForm() {
+            let isValid = true;
+            document.querySelectorAll('.form-field').forEach(f => f.classList.remove('error'));
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    input.closest('.form-field')?.classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) input.type === 'checkbox' ? input.checked = !!data[key] : input.value = data[key];
+            });
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

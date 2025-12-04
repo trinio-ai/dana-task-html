@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .accounts-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .accounts-table th, .accounts-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .accounts-table th { background: #f5f5f5; }
+        .accounts-table input, .accounts-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .totals-row { background: #f8f9fa; font-weight: bold; }
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .template-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="template">Journal Entry Template <span class="required">*</span></label>
+                <select id="template" name="template" required data-fetch-endpoint="/api/erp/journal-entry-templates">
+                    <option value="">Select Template</option>
+                </select>
+            </div>
+
+            <div id="templateInfo" class="template-info" style="display: none;">
+                <h4>Template: <span id="templateName">-</span></h4>
+                <p><small id="templateDescription">-</small></p>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> Amounts from the template can be adjusted before saving. The entry will be created as a draft.
+            </div>
+
+            <div class="form-field">
+                <label for="posting_date">Posting Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <h3>Account Entries</h3>
+            <table class="accounts-table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Debit</th>
+                        <th>Credit</th>
+                        <th>Party Type</th>
+                        <th>Party</th>
+                        <th>Cost Center</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsBody">
+                    <tr>
+                        <td><select name="account[]" data-fetch-endpoint="/api/erp/accounts?is_group=0"><option value="">Select Account</option></select></td>
+                        <td><input type="number" name="debit[]" step="0.01" value="0"></td>
+                        <td><input type="number" name="credit[]" step="0.01" value="0"></td>
+                        <td>
+                            <select name="party_type[]">
+                                <option value="">None</option>
+                                <option value="Customer">Customer</option>
+                                <option value="Supplier">Supplier</option>
+                            </select>
+                        </td>
+                        <td><input type="text" name="party[]"></td>
+                        <td><select name="cost_center[]" data-fetch-endpoint="/api/erp/cost-centers"><option value="">None</option></select></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="totals-row">
+                        <td>Totals</td>
+                        <td id="totalDebit">0.00</td>
+                        <td id="totalCredit">0.00</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <button type="button" id="addRow" style="margin-bottom: 15px;">+ Add Row</button>
+
+            <div class="form-field">
+                <label for="user_remark">Remark</label>
+                <textarea id="user_remark" name="user_remark" rows="2" placeholder="Optional notes for this entry"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        function calculateTotals() {
+            let totalDebit = 0, totalCredit = 0;
+            document.querySelectorAll('[name="debit[]"]').forEach(el => totalDebit += parseFloat(el.value) || 0);
+            document.querySelectorAll('[name="credit[]"]').forEach(el => totalCredit += parseFloat(el.value) || 0);
+            document.getElementById('totalDebit').textContent = totalDebit.toFixed(2);
+            document.getElementById('totalCredit').textContent = totalCredit.toFixed(2);
+        }
+
+        document.getElementById('accountsBody').addEventListener('input', calculateTotals);
+
+        document.getElementById('addRow').addEventListener('click', () => {
+            const tbody = document.getElementById('accountsBody');
+            const row = tbody.rows[0].cloneNode(true);
+            row.querySelectorAll('input, select').forEach(el => el.value = '');
+            row.querySelectorAll('[name="debit[]"], [name="credit[]"]').forEach(el => el.value = '0');
+            tbody.appendChild(row);
+        });
+
+        function getTaskInput() {
+            const accounts = [];
+            const rows = document.querySelectorAll('#accountsBody tr');
+            rows.forEach(row => {
+                const account = row.querySelector('[name="account[]"]').value;
+                const debit = parseFloat(row.querySelector('[name="debit[]"]').value) || 0;
+                const credit = parseFloat(row.querySelector('[name="credit[]"]').value) || 0;
+                if (account && (debit > 0 || credit > 0)) {
+                    accounts.push({
+                        account,
+                        debit,
+                        credit,
+                        party_type: row.querySelector('[name="party_type[]"]').value,
+                        party: row.querySelector('[name="party[]"]').value,
+                        cost_center: row.querySelector('[name="cost_center[]"]').value
+                    });
+                }
+            });
+            return {
+                template: document.getElementById('template').value,
+                posting_date: document.getElementById('posting_date').value,
+                accounts,
+                user_remark: document.getElementById('user_remark').value
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('template').value) {
+                alert('Please select a template');
+                return false;
+            }
+            if (!document.getElementById('posting_date').value) {
+                alert('Please select posting date');
+                return false;
+            }
+            const totalDebit = parseFloat(document.getElementById('totalDebit').textContent);
+            const totalCredit = parseFloat(document.getElementById('totalCredit').textContent);
+            if (totalDebit === 0 && totalCredit === 0) {
+                alert('Please enter at least one account entry');
+                return false;
+            }
+            if (Math.abs(totalDebit - totalCredit) > 0.01) {
+                alert('Total debit must equal total credit');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.template) {
+                document.getElementById('template').value = data.template;
+                document.getElementById('templateName').textContent = data.template_name || data.template;
+                document.getElementById('templateDescription').textContent = data.description || '';
+                document.getElementById('templateInfo').style.display = 'block';
+            }
+            if (data.accounts && data.accounts.length > 0) {
+                const tbody = document.getElementById('accountsBody');
+                tbody.innerHTML = '';
+                data.accounts.forEach(acc => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><select name="account[]" data-fetch-endpoint="/api/erp/accounts?is_group=0"><option value="${acc.account}">${acc.account}</option></select></td>
+                        <td><input type="number" name="debit[]" step="0.01" value="${acc.debit || 0}"></td>
+                        <td><input type="number" name="credit[]" step="0.01" value="${acc.credit || 0}"></td>
+                        <td><select name="party_type[]"><option value="">None</option><option value="Customer" ${acc.party_type === 'Customer' ? 'selected' : ''}>Customer</option><option value="Supplier" ${acc.party_type === 'Supplier' ? 'selected' : ''}>Supplier</option></select></td>
+                        <td><input type="text" name="party[]" value="${acc.party || ''}"></td>
+                        <td><select name="cost_center[]" data-fetch-endpoint="/api/erp/cost-centers"><option value="${acc.cost_center || ''}">${acc.cost_center || 'None'}</option></select></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                calculateTotals();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

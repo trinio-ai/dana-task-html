@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .entry-summary { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .entry-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #dee2e6; }
+        .entry-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .entry-table th, .entry-table td { padding: 8px; border: 1px solid #ddd; }
+        .entry-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .debit { color: #dc3545; }
+        .credit { color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="journal_entry">Journal Entry <span class="required">*</span></label>
+                <select id="journal_entry" name="journal_entry" required data-fetch-endpoint="/api/erp/journal-entries?docstatus=0">
+                    <option value="">Select Journal Entry</option>
+                </select>
+            </div>
+
+            <div id="entrySummary" class="entry-summary" style="display: none;">
+                <div class="entry-row">
+                    <span>Posting Date:</span>
+                    <span id="postingDate">-</span>
+                </div>
+                <div class="entry-row">
+                    <span>Entry Type:</span>
+                    <span id="entryType">-</span>
+                </div>
+                <div class="entry-row">
+                    <span>User Remark:</span>
+                    <span id="userRemark">-</span>
+                </div>
+
+                <table class="entry-table">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th class="text-right">Debit</th>
+                            <th class="text-right">Credit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsBody"></tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Total</th>
+                            <th class="text-right debit" id="totalDebit">0.00</th>
+                            <th class="text-right credit" id="totalCredit">0.00</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="form-field">
+                <label for="review_status">Review Decision <span class="required">*</span></label>
+                <select id="review_status" name="review_status" required>
+                    <option value="">Select Decision</option>
+                    <option value="approved">Approve - Ready for Submission</option>
+                    <option value="rejected">Reject - Needs Correction</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="review_comments">Review Comments</label>
+                <textarea id="review_comments" name="review_comments" rows="3" placeholder="Add any comments or notes about this review"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                journal_entry: document.getElementById('journal_entry').value,
+                review_status: document.getElementById('review_status').value,
+                review_comments: document.getElementById('review_comments').value
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            ['journal_entry', 'review_status'].forEach(id => {
+                const el = document.getElementById(id);
+                el.closest('.form-field').classList.remove('error');
+                if (!el.value) {
+                    el.closest('.form-field').classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.journal_entry) document.getElementById('journal_entry').value = data.journal_entry;
+
+            // Display entry details if provided
+            if (data.posting_date) {
+                document.getElementById('postingDate').textContent = data.posting_date;
+                document.getElementById('entryType').textContent = data.entry_type || '-';
+                document.getElementById('userRemark').textContent = data.user_remark || '-';
+
+                if (data.accounts) {
+                    const tbody = document.getElementById('accountsBody');
+                    tbody.innerHTML = data.accounts.map(a => `
+                        <tr>
+                            <td>${a.account}</td>
+                            <td class="text-right debit">${a.debit ? a.debit.toFixed(2) : ''}</td>
+                            <td class="text-right credit">${a.credit ? a.credit.toFixed(2) : ''}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                document.getElementById('totalDebit').textContent = (data.total_debit || 0).toFixed(2);
+                document.getElementById('totalCredit').textContent = (data.total_credit || 0).toFixed(2);
+                document.getElementById('entrySummary').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

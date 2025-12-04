@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="item_tax_template">Sales Tax Template</label>
+                <select id="item_tax_template" name="item_tax_template">
+                    <option value="">Select tax template</option>
+                </select>
+                <small>Tax template for sales transactions</small>
+            </div>
+
+            <div class="form-field">
+                <label for="purchase_tax_template">Purchase Tax Template</label>
+                <select id="purchase_tax_template" name="purchase_tax_template">
+                    <option value="">Select tax template</option>
+                </select>
+                <small>Tax template for purchase transactions</small>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_zero_rated" name="is_zero_rated">
+                    <span>Zero Rated (Tax-exempt)</span>
+                </label>
+            </div>
+
+            <div class="form-field">
+                <label for="tax_category">Tax Category</label>
+                <select id="tax_category" name="tax_category">
+                    <option value="">Default</option>
+                    <option value="Standard">Standard Rate</option>
+                    <option value="Reduced">Reduced Rate</option>
+                    <option value="Zero">Zero Rate</option>
+                    <option value="Exempt">Exempt</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'is_zero_rated') {
+                    data[key] = value;
+                }
+            }
+            data.is_zero_rated = document.getElementById('is_zero_rated').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

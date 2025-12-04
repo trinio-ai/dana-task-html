@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .quotation-details { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .conversion-note { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .conversion-note h4 { margin: 0 0 10px 0; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="quotation">Select Quotation <span class="required">*</span></label>
+                <select id="quotation" name="quotation" required onchange="loadQuotation()"
+                        data-fetch-endpoint="/api/erp/selling/quotations?docstatus=1">
+                    <option value="">Select Quotation</option>
+                </select>
+            </div>
+
+            <div class="quotation-details" id="quotationDetails" style="display: none;">
+                <h4>Quotation Details</h4>
+                <div class="detail-row">
+                    <span>Customer:</span>
+                    <span id="detail_customer">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span id="detail_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Grand Total:</span>
+                    <span id="detail_total">-</span>
+                </div>
+
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-field">
+                <label for="delivery_date">Delivery Date</label>
+                <input type="date" id="delivery_date" name="delivery_date">
+            </div>
+
+            <div class="conversion-note" id="conversionNote" style="display: none;">
+                <h4>Sales Order will be created with:</h4>
+                <ul>
+                    <li>Same customer and items from quotation</li>
+                    <li>Same rates and quantities</li>
+                    <li>Draft status (needs submission)</li>
+                </ul>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadQuotation() {
+            const quotation = document.getElementById('quotation').value;
+            if (!quotation) {
+                document.getElementById('quotationDetails').style.display = 'none';
+                document.getElementById('conversionNote').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/quotations/${quotation}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderQuotation(data) {
+            document.getElementById('detail_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('detail_date').textContent = data.transaction_date || '-';
+            document.getElementById('detail_total').textContent = (data.grand_total || 0).toFixed(2);
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty}</td>
+                    <td>${(item.rate || 0).toFixed(2)}</td>
+                    <td>${(item.amount || 0).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('quotationDetails').style.display = 'block';
+            document.getElementById('conversionNote').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                quotation: document.getElementById('quotation').value,
+                delivery_date: document.getElementById('delivery_date').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('quotation').value) {
+                alert('Please select a quotation');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.quotation || data.name) {
+                renderQuotation(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('quotation');
+                select.innerHTML = '<option value="">Select Quotation</option>' +
+                    items.map(q => `<option value="${q.name}">${q.label || q.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

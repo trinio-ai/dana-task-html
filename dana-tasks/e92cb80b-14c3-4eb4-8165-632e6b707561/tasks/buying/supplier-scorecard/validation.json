@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"supplier": {"type": "string", "minLength": 1}, "from_date": {"type": "string", "format": "date"}, "to_date": {"type": "string", "format": "date"}}, "required": ["supplier"]}

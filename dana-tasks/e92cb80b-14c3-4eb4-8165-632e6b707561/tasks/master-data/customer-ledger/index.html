@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer">Customer <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="customer" name="customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select customer</option>
+                </select>
+            </div>
+
+            <fieldset>
+                <legend>Date Range</legend>
+
+                <div class="form-field">
+                    <label for="from_date">From Date</label>
+                    <input type="date" id="from_date" name="from_date">
+                </div>
+
+                <div class="form-field">
+                    <label for="to_date">To Date</label>
+                    <input type="date" id="to_date" name="to_date">
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Filters</legend>
+
+                <div class="form-field">
+                    <label for="voucher_type">Transaction Type</label>
+                    <select id="voucher_type" name="voucher_type">
+                        <option value="">All Types</option>
+                        <option value="Sales Invoice">Sales Invoice</option>
+                        <option value="Payment Entry">Payment</option>
+                        <option value="Credit Note">Credit Note</option>
+                        <option value="Journal Entry">Journal Entry</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="show_opening_balance" name="show_opening_balance" checked>
+                        <span>Show opening balance</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="group_by_voucher" name="group_by_voucher">
+                        <span>Group by voucher type</span>
+                    </label>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            data.show_opening_balance = document.getElementById('show_opening_balance').checked;
+            data.group_by_voucher = document.getElementById('group_by_voucher').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('customer').value) {
+                errors.push('Customer is required');
+            }
+            const fromDate = document.getElementById('from_date').value;
+            const toDate = document.getElementById('to_date').value;
+            if (fromDate && toDate && new Date(fromDate) > new Date(toDate)) {
+                errors.push('From date cannot be after to date');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

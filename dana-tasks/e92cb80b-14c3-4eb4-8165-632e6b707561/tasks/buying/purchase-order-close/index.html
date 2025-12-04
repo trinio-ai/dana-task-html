@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .info-box { background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 8px; margin: 15px 0; color: #0c5460; }
+        .progress-bar { background: #e9ecef; border-radius: 4px; height: 20px; overflow: hidden; margin: 5px 0; }
+        .progress-fill { background: #28a745; height: 100%; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_order">Purchase Order <span class="required">*</span></label>
+                <select id="purchase_order" name="purchase_order" required onchange="loadPO()"
+                        data-fetch-endpoint="/api/erp/buying/purchase-orders?docstatus=1&status=To Receive and Bill,To Receive,To Bill">
+                    <option value="">Select Purchase Order</option>
+                </select>
+            </div>
+
+            <div class="info-box" id="infoBox" style="display: none;">
+                <strong>Note:</strong> Closing this PO will prevent any further goods receipt or billing against it. Any pending quantities will be marked as complete.
+            </div>
+
+            <div class="detail-section" id="poDetails" style="display: none;">
+                <h4>Purchase Order Details</h4>
+                <div class="detail-row">
+                    <span>Supplier:</span>
+                    <span id="supplier_name">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Grand Total:</span>
+                    <span id="grand_total">-</span>
+                </div>
+
+                <h5>Completion Status</h5>
+                <div class="detail-row">
+                    <span>Received:</span>
+                    <span id="per_received_text">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="received_bar" style="width: 0%"></div>
+                </div>
+
+                <div class="detail-row">
+                    <span>Billed:</span>
+                    <span id="per_billed_text">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="billed_bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="form-field" id="reasonField" style="display: none;">
+                <label for="reason">Reason for Closing</label>
+                <textarea id="reason" name="reason" rows="3" placeholder="Enter reason for closing this Purchase Order"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentPO = null;
+
+        function loadPO() {
+            const poId = document.getElementById('purchase_order').value;
+            if (!poId) {
+                document.getElementById('infoBox').style.display = 'none';
+                document.getElementById('poDetails').style.display = 'none';
+                document.getElementById('reasonField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/purchase-orders/${poId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderPO(data) {
+            currentPO = data;
+
+            document.getElementById('supplier_name').textContent = data.supplier_name || data.supplier || '-';
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+            document.getElementById('grand_total').textContent = data.grand_total ? data.grand_total.toFixed(2) : '-';
+
+            const perReceived = data.per_received || 0;
+            const perBilled = data.per_billed || 0;
+
+            document.getElementById('per_received_text').textContent = perReceived.toFixed(1) + '%';
+            document.getElementById('received_bar').style.width = perReceived + '%';
+            document.getElementById('per_billed_text').textContent = perBilled.toFixed(1) + '%';
+            document.getElementById('billed_bar').style.width = perBilled + '%';
+
+            document.getElementById('infoBox').style.display = 'block';
+            document.getElementById('poDetails').style.display = 'block';
+            document.getElementById('reasonField').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                purchase_order: document.getElementById('purchase_order').value,
+                reason: document.getElementById('reason').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.purchase_order) { alert('Please select a Purchase Order'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.supplier) {
+                renderPO(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

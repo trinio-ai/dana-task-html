@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required data-dependency-task="supplier-create" data-dependency-label="+ New Supplier">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="address_type">Address Type <span class="required">*</span></label>
+                <select id="address_type" name="address_type" required>
+                    <option value="">Select type</option>
+                    <option value="Billing">Billing</option>
+                    <option value="Shipping">Shipping</option>
+                    <option value="Office">Office</option>
+                    <option value="Warehouse">Warehouse</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="address_title">Address Title</label>
+                <input type="text" id="address_title" name="address_title" placeholder="e.g., Main Office">
+            </div>
+
+            <div class="form-field">
+                <label for="address_line1">Address Line 1 <span class="required">*</span></label>
+                <input type="text" id="address_line1" name="address_line1" required placeholder="Street address">
+            </div>
+
+            <div class="form-field">
+                <label for="address_line2">Address Line 2</label>
+                <input type="text" id="address_line2" name="address_line2" placeholder="Apt, suite, unit, etc.">
+            </div>
+
+            <div class="form-field">
+                <label for="city">City <span class="required">*</span></label>
+                <input type="text" id="city" name="city" required>
+            </div>
+
+            <div class="form-field">
+                <label for="state">State/Province</label>
+                <input type="text" id="state" name="state">
+            </div>
+
+            <div class="form-field">
+                <label for="postal_code">Postal Code</label>
+                <input type="text" id="postal_code" name="postal_code">
+            </div>
+
+            <div class="form-field">
+                <label for="country">Country <span class="required">*</span></label>
+                <select id="country" name="country" required>
+                    <option value="">Select country</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_primary" name="is_primary">
+                    <span>Set as Primary Address</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'is_primary') {
+                    data[key] = value;
+                }
+            }
+            data.is_primary = document.getElementById('is_primary').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            if (!document.getElementById('address_type').value) {
+                errors.push('Address type is required');
+            }
+            if (!document.getElementById('address_line1').value.trim()) {
+                errors.push('Address line 1 is required');
+            }
+            if (!document.getElementById('city').value.trim()) {
+                errors.push('City is required');
+            }
+            if (!document.getElementById('country').value) {
+                errors.push('Country is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

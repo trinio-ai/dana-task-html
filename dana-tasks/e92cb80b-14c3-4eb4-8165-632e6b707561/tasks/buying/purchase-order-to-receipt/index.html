@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input, .items-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .pending-qty { color: #6c757d; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_order">Purchase Order <span class="required">*</span></label>
+                <select id="purchase_order" name="purchase_order" required onchange="loadPO()"
+                        data-fetch-endpoint="/api/erp/buying/purchase-orders?docstatus=1&status=To Receive and Bill,To Receive">
+                    <option value="">Select Purchase Order</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="poDetails" style="display: none;">
+                <h4>Purchase Order Details</h4>
+                <div class="detail-row">
+                    <span>Supplier:</span>
+                    <span id="supplier_name">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+            </div>
+
+            <div class="form-field" id="dateField" style="display: none;">
+                <label for="posting_date">Receipt Date</label>
+                <input type="date" id="posting_date" name="posting_date">
+            </div>
+
+            <div id="itemsSection" style="display: none;">
+                <h4>Items to Receive</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Ordered</th>
+                            <th>Pending</th>
+                            <th>Receive Qty</th>
+                            <th>Warehouse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentPO = null;
+        let warehouseOptions = [];
+
+        function loadPO() {
+            const poId = document.getElementById('purchase_order').value;
+            if (!poId) {
+                document.getElementById('poDetails').style.display = 'none';
+                document.getElementById('dateField').style.display = 'none';
+                document.getElementById('itemsSection').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/purchase-orders/${poId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderPO(data) {
+            currentPO = data;
+
+            document.getElementById('supplier_name').textContent = data.supplier_name || data.supplier || '-';
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('posting_date').value = today;
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map((item, idx) => {
+                const pending = (item.qty || 0) - (item.received_qty || 0);
+                return `
+                    <tr>
+                        <td>
+                            <input type="hidden" name="item_code_${idx}" value="${item.item_code}">
+                            ${item.item_name || item.item_code}
+                        </td>
+                        <td>${item.qty} ${item.uom || ''}</td>
+                        <td class="pending-qty">${pending} ${item.uom || ''}</td>
+                        <td><input type="number" name="qty_${idx}" value="${pending}" min="0" max="${pending}" step="0.001"></td>
+                        <td>
+                            <select name="warehouse_${idx}">
+                                ${warehouseOptions.map(w => `<option value="${w.value}" ${w.value === item.warehouse ? 'selected' : ''}>${w.label}</option>`).join('')}
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('poDetails').style.display = 'block';
+            document.getElementById('dateField').style.display = 'block';
+            document.getElementById('itemsSection').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            const items = [];
+            if (currentPO && currentPO.items) {
+                currentPO.items.forEach((item, idx) => {
+                    const qtyInput = document.querySelector(`input[name="qty_${idx}"]`);
+                    const warehouseSelect = document.querySelector(`select[name="warehouse_${idx}"]`);
+                    const qty = parseFloat(qtyInput.value) || 0;
+                    if (qty > 0) {
+                        items.push({
+                            item_code: item.item_code,
+                            qty: qty,
+                            warehouse: warehouseSelect ? warehouseSelect.value : null
+                        });
+                    }
+                });
+            }
+
+            return {
+                purchase_order: document.getElementById('purchase_order').value,
+                posting_date: document.getElementById('posting_date').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.purchase_order) { alert('Please select a Purchase Order'); return false; }
+            if (data.items.length === 0) { alert('Please enter quantity to receive for at least one item'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options && data.options.warehouse) {
+                warehouseOptions = data.options.warehouse;
+            }
+            if (data.supplier) {
+                renderPO(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .revaluation-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9em; }
+        .revaluation-table th, .revaluation-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        .revaluation-table th { background: #f5f5f5; }
+        .revaluation-table td:first-child, .revaluation-table th:first-child { text-align: left; }
+        .gain { color: #28a745; }
+        .loss { color: #dc3545; }
+        .summary { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
+        input[type="number"] { width: 100px; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="posting_date">Revaluation Date <span class="required">*</span></label>
+                    <input type="date" id="posting_date" name="posting_date" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="company">Company <span class="required">*</span></label>
+                    <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies">
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="exchange_rate_revaluation_account">Exchange Gain/Loss Account <span class="required">*</span></label>
+                    <select id="exchange_rate_revaluation_account" name="exchange_rate_revaluation_account" required
+                            data-fetch-endpoint="/api/erp/accounts?account_type=Expense Account">
+                        <option value="">Select Account</option>
+                    </select>
+                </div>
+            </div>
+
+            <h4>Foreign Currency Accounts</h4>
+            <div style="margin-bottom: 10px;">
+                <button type="button" onclick="fetchAccounts()">Fetch Foreign Currency Accounts</button>
+            </div>
+
+            <table class="revaluation-table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Party</th>
+                        <th>Currency</th>
+                        <th>Balance (FC)</th>
+                        <th>Current Rate</th>
+                        <th>New Rate</th>
+                        <th>Current Balance</th>
+                        <th>New Balance</th>
+                        <th>Gain/Loss</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsBody">
+                    <tr><td colspan="9">Click "Fetch Foreign Currency Accounts" to load accounts for revaluation</td></tr>
+                </tbody>
+            </table>
+
+            <div class="summary">
+                <div class="summary-row">
+                    <span>Total Unrealized Gain:</span>
+                    <span id="total_gain" class="gain">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Unrealized Loss:</span>
+                    <span id="total_loss" class="loss">0.00</span>
+                </div>
+                <div class="summary-row" style="font-weight: bold; border-top: 1px solid #007bff; padding-top: 10px;">
+                    <span>Net Effect:</span>
+                    <span id="net_effect">0.00</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        let accounts = [];
+
+        function fetchAccounts() {
+            const msg = {
+                type: 'fetchData',
+                endpoint: '/api/v1/erp/accounting/currency-revaluation/accounts',
+                filters: {
+                    posting_date: document.getElementById('posting_date').value,
+                    company: document.getElementById('company').value
+                }
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function updateGainLoss(row) {
+            const fcBalance = parseFloat(row.dataset.fcBalance) || 0;
+            const currentRate = parseFloat(row.dataset.currentRate) || 1;
+            const newRateInput = row.querySelector('[name="new_rate"]');
+            const newRate = parseFloat(newRateInput.value) || currentRate;
+
+            const currentBalance = fcBalance * currentRate;
+            const newBalance = fcBalance * newRate;
+            const gainLoss = newBalance - currentBalance;
+
+            row.querySelector('.current-balance').textContent = currentBalance.toFixed(2);
+            row.querySelector('.new-balance').textContent = newBalance.toFixed(2);
+
+            const gainLossCell = row.querySelector('.gain-loss');
+            gainLossCell.textContent = Math.abs(gainLoss).toFixed(2);
+            gainLossCell.className = gainLoss >= 0 ? 'gain-loss gain' : 'gain-loss loss';
+            if (gainLoss < 0) {
+                gainLossCell.textContent = '-' + gainLossCell.textContent;
+            }
+
+            row.dataset.gainLoss = gainLoss;
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let totalGain = 0, totalLoss = 0;
+            document.querySelectorAll('#accountsBody tr[data-account]').forEach(row => {
+                const gainLoss = parseFloat(row.dataset.gainLoss) || 0;
+                if (gainLoss > 0) {
+                    totalGain += gainLoss;
+                } else {
+                    totalLoss += Math.abs(gainLoss);
+                }
+            });
+
+            document.getElementById('total_gain').textContent = totalGain.toFixed(2);
+            document.getElementById('total_loss').textContent = totalLoss.toFixed(2);
+
+            const netEffect = totalGain - totalLoss;
+            const netEffectEl = document.getElementById('net_effect');
+            netEffectEl.textContent = Math.abs(netEffect).toFixed(2);
+            netEffectEl.className = netEffect >= 0 ? 'gain' : 'loss';
+            if (netEffect < 0) {
+                netEffectEl.textContent = '-' + netEffectEl.textContent;
+            }
+        }
+
+        function getTaskInput() {
+            const selectedAccounts = [];
+            document.querySelectorAll('#accountsBody tr[data-account]').forEach(row => {
+                const gainLoss = parseFloat(row.dataset.gainLoss) || 0;
+                if (gainLoss !== 0) {
+                    selectedAccounts.push({
+                        account: row.dataset.account,
+                        party_type: row.dataset.partyType || null,
+                        party: row.dataset.party || null,
+                        balance_in_account_currency: parseFloat(row.dataset.fcBalance),
+                        current_exchange_rate: parseFloat(row.dataset.currentRate),
+                        new_exchange_rate: parseFloat(row.querySelector('[name="new_rate"]').value),
+                        current_balance: parseFloat(row.querySelector('.current-balance').textContent),
+                        new_balance: parseFloat(row.querySelector('.new-balance').textContent),
+                        gain_loss: gainLoss
+                    });
+                }
+            });
+
+            return {
+                posting_date: document.getElementById('posting_date').value,
+                company: document.getElementById('company').value,
+                exchange_rate_revaluation_account: document.getElementById('exchange_rate_revaluation_account').value,
+                accounts: selectedAccounts
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.posting_date) { alert('Please select revaluation date'); return false; }
+            if (!data.company) { alert('Please select company'); return false; }
+            if (!data.exchange_rate_revaluation_account) { alert('Please select exchange gain/loss account'); return false; }
+            if (data.accounts.length === 0) { alert('No accounts with exchange rate changes'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.accounts && data.accounts.length > 0) {
+                accounts = data.accounts;
+                const tbody = document.getElementById('accountsBody');
+                tbody.innerHTML = '';
+                data.accounts.forEach(acc => {
+                    const row = document.createElement('tr');
+                    row.dataset.account = acc.account;
+                    row.dataset.partyType = acc.party_type || '';
+                    row.dataset.party = acc.party || '';
+                    row.dataset.fcBalance = acc.balance_in_account_currency;
+                    row.dataset.currentRate = acc.exchange_rate;
+                    row.dataset.gainLoss = 0;
+                    row.innerHTML = `
+                        <td>${acc.account_name || acc.account}</td>
+                        <td>${acc.party || '-'}</td>
+                        <td>${acc.account_currency}</td>
+                        <td>${acc.balance_in_account_currency.toFixed(2)}</td>
+                        <td>${acc.exchange_rate.toFixed(6)}</td>
+                        <td><input type="number" name="new_rate" step="0.000001" value="${acc.new_exchange_rate || acc.exchange_rate}" onchange="updateGainLoss(this.closest('tr'))"></td>
+                        <td class="current-balance">${(acc.balance_in_account_currency * acc.exchange_rate).toFixed(2)}</td>
+                        <td class="new-balance">${(acc.balance_in_account_currency * (acc.new_exchange_rate || acc.exchange_rate)).toFixed(2)}</td>
+                        <td class="gain-loss">0.00</td>
+                    `;
+                    tbody.appendChild(row);
+                    updateGainLoss(row);
+                });
+            } else {
+                document.getElementById('accountsBody').innerHTML = '<tr><td colspan="9">No foreign currency accounts found</td></tr>';
+            }
+            calculateTotals();
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

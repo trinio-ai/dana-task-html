@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+    <style>
+        .field-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .link-button { background: none; border: none; color: #0b61d6; cursor: pointer; padding: 0; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item_name">Item Name <span class="required">*</span></label>
+                <input type="text" id="item_name" name="item_name" required placeholder="Enter item name">
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="item_group">Item Group <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('item-group-create')">+ New Item Group</button>
+                </div>
+                <select id="item_group" name="item_group" required onchange="handleNewOption(this)">
+                    <option value="">Select item group</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="stock_uom">Stock UOM</label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('uom-create')">+ New UOM</button>
+                </div>
+                <select id="stock_uom" name="stock_uom" onchange="handleNewOption(this)">
+                    <option value="">Select unit of measure</option>
+                </select>
+                <small>Default unit for inventory tracking</small>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_stock_item" name="is_stock_item" checked>
+                    <span>Stock Item (tracks inventory)</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'is_stock_item') {
+                    data[key] = value;
+                }
+            }
+            data.is_stock_item = document.getElementById('is_stock_item').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item_name').value.trim()) {
+                errors.push('Item name is required');
+            }
+            if (!document.getElementById('item_group').value) {
+                errors.push('Item group is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function populateSelect(selectId, options = [], dependencyTaskId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const base = select.querySelector('option')?.outerHTML || '<option value=\"\">Select</option>';
+            const newOption = dependencyTaskId ? `<option value=\"__new__${dependencyTaskId}\">+ New</option>` : '';
+            select.innerHTML = base + options.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('') + newOption;
+        }
+
+        function openDependencyTask(taskId) {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'openTask', taskId }, '*');
+            } else {
+                console.log('Open dependency task:', taskId);
+            }
+        }
+
+        function handleNewOption(selectEl) {
+            if (selectEl && selectEl.value.startsWith('__new__')) {
+                const taskId = selectEl.value.replace('__new__', '');
+                selectEl.value = '';
+                openDependencyTask(taskId);
+            }
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            populateSelect('item_group', options.item_group || [], 'item-group-create');
+            populateSelect('stock_uom', options.stock_uom || [], 'uom-create');
+
+            if (defaults.is_stock_item !== undefined) {
+                document.getElementById('is_stock_item').checked = !!defaults.is_stock_item;
+            }
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input && !['item_group','stock_uom','is_stock_item'].includes(key)) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

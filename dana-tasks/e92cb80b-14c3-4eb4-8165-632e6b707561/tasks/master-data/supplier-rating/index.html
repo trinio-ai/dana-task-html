@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required data-dependency-task="supplier-create" data-dependency-label="+ New Supplier">
+                    <option value="">Select supplier</option>
+                </select>
+            </div>
+
+            <fieldset>
+                <legend>Performance Ratings (1-5)</legend>
+
+                <div class="form-field">
+                    <label for="delivery_rating">Delivery Performance <span class="required">*</span></label>
+                    <select id="delivery_rating" name="delivery_rating" required>
+                        <option value="">Select rating</option>
+                        <option value="5">5 - Excellent (Always on time)</option>
+                        <option value="4">4 - Good (Usually on time)</option>
+                        <option value="3">3 - Average (Sometimes delayed)</option>
+                        <option value="2">2 - Below Average (Often delayed)</option>
+                        <option value="1">1 - Poor (Frequently late)</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="quality_rating">Quality <span class="required">*</span></label>
+                    <select id="quality_rating" name="quality_rating" required>
+                        <option value="">Select rating</option>
+                        <option value="5">5 - Excellent (No defects)</option>
+                        <option value="4">4 - Good (Minor issues)</option>
+                        <option value="3">3 - Average (Some defects)</option>
+                        <option value="2">2 - Below Average (Frequent issues)</option>
+                        <option value="1">1 - Poor (Major quality problems)</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="pricing_rating">Pricing Competitiveness <span class="required">*</span></label>
+                    <select id="pricing_rating" name="pricing_rating" required>
+                        <option value="">Select rating</option>
+                        <option value="5">5 - Excellent (Best in market)</option>
+                        <option value="4">4 - Good (Competitive)</option>
+                        <option value="3">3 - Average (Market rate)</option>
+                        <option value="2">2 - Below Average (Slightly expensive)</option>
+                        <option value="1">1 - Poor (Overpriced)</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="responsiveness_rating">Responsiveness</label>
+                    <select id="responsiveness_rating" name="responsiveness_rating">
+                        <option value="">Select rating</option>
+                        <option value="5">5 - Excellent (Very responsive)</option>
+                        <option value="4">4 - Good</option>
+                        <option value="3">3 - Average</option>
+                        <option value="2">2 - Below Average</option>
+                        <option value="1">1 - Poor (Hard to reach)</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <div class="form-field">
+                <label for="evaluation_period">Evaluation Period</label>
+                <select id="evaluation_period" name="evaluation_period">
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly" selected>Quarterly</option>
+                    <option value="Yearly">Yearly</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="comments">Comments</label>
+                <textarea id="comments" name="comments" rows="3" placeholder="Additional notes on supplier performance"></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key.endsWith('_rating')) {
+                    data[key] = value ? parseInt(value) : null;
+                } else {
+                    data[key] = value;
+                }
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('supplier').value) {
+                errors.push('Supplier is required');
+            }
+            if (!document.getElementById('delivery_rating').value) {
+                errors.push('Delivery rating is required');
+            }
+            if (!document.getElementById('quality_rating').value) {
+                errors.push('Quality rating is required');
+            }
+            if (!document.getElementById('pricing_rating').value) {
+                errors.push('Pricing rating is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) input.value = data[key];
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="manufacturer">Manufacturer <span class="required">*</span></label>
+                <select id="manufacturer" name="manufacturer" required>
+                    <option value="">Select manufacturer</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="manufacturer_part_no">Manufacturer Part Number</label>
+                <input type="text" id="manufacturer_part_no" name="manufacturer_part_no" placeholder="OEM part number">
+            </div>
+
+            <div class="form-field">
+                <label for="brand">Brand</label>
+                <select id="brand" name="brand">
+                    <option value="">Select brand</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="country_of_origin">Country of Origin</label>
+                <select id="country_of_origin" name="country_of_origin">
+                    <option value="">Select country</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="warranty_period">Warranty Period (Months)</label>
+                <input type="number" id="warranty_period" name="warranty_period" min="0" placeholder="12">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'warranty_period') {
+                    data[key] = value ? parseInt(value) : null;
+                } else {
+                    data[key] = value;
+                }
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            if (!document.getElementById('manufacturer').value) {
+                errors.push('Manufacturer is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

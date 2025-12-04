@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <!-- Header Fields -->
+            <div class="form-field">
+                <label for="posting_date">전표일 <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <div class="form-field">
+                <label for="entry_type">전표 유형 <span class="required">*</span></label>
+                <select id="entry_type" name="entry_type" required>
+                    <option value="">선택하세요</option>
+                    <option value="일반">일반</option>
+                    <option value="개시">개시</option>
+                    <option value="결산">결산</option>
+                    <option value="조정">조정</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="user_remark">적요</label>
+                <input type="text" id="user_remark" name="user_remark" placeholder="전표에 대한 설명을 입력하세요">
+            </div>
+
+            <!-- Journal Entry Line Items -->
+            <div class="form-section">
+                <div class="section-header">
+                    <label>분개 내역 <span class="required">*</span></label>
+                    <button type="button" class="btn-add-row" onclick="addAccountRow()">+ 행 추가</button>
+                </div>
+
+                <table class="child-table" id="accountsTable" data-table-name="accounts">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%">계정과목 <span class="required">*</span></th>
+                            <th style="width: 20%">코스트센터</th>
+                            <th style="width: 18%">차변</th>
+                            <th style="width: 18%">대변</th>
+                            <th style="width: 10%">비고</th>
+                            <th style="width: 4%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsBody">
+                        <!-- Rows added dynamically -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="totals-row">
+                            <td colspan="2" style="text-align: right; font-weight: bold;">합계</td>
+                            <td style="text-align: right; font-weight: bold;"><span id="totalDebit">0</span></td>
+                            <td style="text-align: right; font-weight: bold;"><span id="totalCredit">0</span></td>
+                            <td colspan="2"></td>
+                        </tr>
+                        <tr class="balance-row" id="balanceRow" style="display: none;">
+                            <td colspan="6" style="text-align: center; color: var(--error-color, #dc2626);">
+                                <span id="balanceMessage"></span>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Hidden fields for totals (for form submission) -->
+            <input type="hidden" id="total_debit" name="total_debit" value="0">
+            <input type="hidden" id="total_credit" name="total_credit" value="0">
+        </form>
+    </div>
+
+    <style>
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .section-header label {
+            font-weight: 600;
+        }
+        .btn-add-row {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            background: var(--primary-color, #3b82f6);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-add-row:hover {
+            background: var(--primary-hover, #2563eb);
+        }
+        .child-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .child-table th,
+        .child-table td {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color, #e5e7eb);
+            vertical-align: middle;
+        }
+        .child-table th {
+            background: var(--header-bg, #f9fafb);
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-align: left;
+        }
+        .child-table input,
+        .child-table select {
+            width: 100%;
+            padding: 0.375rem;
+            border: 1px solid var(--border-color, #e5e7eb);
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .child-table input[type="number"] {
+            text-align: right;
+        }
+        .btn-remove-row {
+            padding: 0.25rem 0.5rem;
+            background: var(--error-color, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .btn-remove-row:hover {
+            background: #b91c1c;
+        }
+        .totals-row td {
+            background: var(--header-bg, #f9fafb);
+        }
+        .balance-row td {
+            background: #fef2f2;
+            font-weight: 500;
+        }
+        .form-section {
+            margin-top: 1.5rem;
+        }
+    </style>
+
+    <script>
+        // Store dropdown options from fetch data
+        let accountOptions = [];
+        let costCenterOptions = [];
+
+        // Initialize with one empty row
+        document.addEventListener('DOMContentLoaded', function() {
+            addAccountRow();
+        });
+
+        // Add a new row to the accounts table
+        function addAccountRow() {
+            const tbody = document.getElementById('accountsBody');
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>
+                    <select name="account" class="account-select" required onchange="validateRow(this.closest('tr'))">
+                        <option value="">선택</option>
+                        ${accountOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <select name="cost_center" class="cost-center-select">
+                        <option value="">선택</option>
+                        ${costCenterOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="debit" class="debit-input" value="0" min="0" step="1" oninput="onAmountChange(this)">
+                </td>
+                <td>
+                    <input type="number" name="credit" class="credit-input" value="0" min="0" step="1" oninput="onAmountChange(this)">
+                </td>
+                <td>
+                    <input type="text" name="remark" class="remark-input" placeholder="">
+                </td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+            updateTotals();
+        }
+
+        // Remove a row
+        function removeRow(button) {
+            const tbody = document.getElementById('accountsBody');
+            if (tbody.children.length > 1) {
+                button.closest('tr').remove();
+                updateTotals();
+            } else {
+                alert('최소 한 개의 분개 항목이 필요합니다.');
+            }
+        }
+
+        // Handle amount change - clear the other field if this one has value
+        function onAmountChange(input) {
+            const row = input.closest('tr');
+            const debitInput = row.querySelector('.debit-input');
+            const creditInput = row.querySelector('.credit-input');
+
+            // If entering debit, clear credit (and vice versa) - optional UX improvement
+            // For now, just update totals
+            updateTotals();
+        }
+
+        // Update totals and check balance
+        function updateTotals() {
+            const rows = document.querySelectorAll('#accountsBody tr');
+            let totalDebit = 0;
+            let totalCredit = 0;
+
+            rows.forEach(row => {
+                const debit = parseFloat(row.querySelector('.debit-input').value) || 0;
+                const credit = parseFloat(row.querySelector('.credit-input').value) || 0;
+                totalDebit += debit;
+                totalCredit += credit;
+            });
+
+            // Update display
+            document.getElementById('totalDebit').textContent = totalDebit.toLocaleString();
+            document.getElementById('totalCredit').textContent = totalCredit.toLocaleString();
+
+            // Update hidden fields
+            document.getElementById('total_debit').value = totalDebit;
+            document.getElementById('total_credit').value = totalCredit;
+
+            // Check balance
+            const balanceRow = document.getElementById('balanceRow');
+            const balanceMessage = document.getElementById('balanceMessage');
+
+            if (totalDebit !== totalCredit && (totalDebit > 0 || totalCredit > 0)) {
+                const diff = Math.abs(totalDebit - totalCredit);
+                balanceMessage.textContent = `차변과 대변이 일치하지 않습니다. 차이: ${diff.toLocaleString()}`;
+                balanceRow.style.display = 'table-row';
+            } else {
+                balanceRow.style.display = 'none';
+            }
+        }
+
+        // Validate a single row
+        function validateRow(row) {
+            // Add any row-specific validation here
+        }
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = {};
+
+            // Get header fields
+            formData.posting_date = document.getElementById('posting_date').value;
+            formData.entry_type = document.getElementById('entry_type').value;
+            formData.user_remark = document.getElementById('user_remark').value;
+            formData.total_debit = parseFloat(document.getElementById('total_debit').value) || 0;
+            formData.total_credit = parseFloat(document.getElementById('total_credit').value) || 0;
+
+            // Get table rows
+            const accounts = [];
+            document.querySelectorAll('#accountsBody tr').forEach(row => {
+                const account = row.querySelector('[name="account"]').value;
+                const cost_center = row.querySelector('[name="cost_center"]').value;
+                const debit = parseFloat(row.querySelector('[name="debit"]').value) || 0;
+                const credit = parseFloat(row.querySelector('[name="credit"]').value) || 0;
+                const remark = row.querySelector('[name="remark"]').value;
+
+                // Only include rows with an account selected
+                if (account) {
+                    accounts.push({
+                        account: account,
+                        cost_center: cost_center || null,
+                        debit: debit,
+                        credit: credit,
+                        remark: remark || null
+                    });
+                }
+            });
+
+            formData.accounts = accounts;
+            return formData;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+            const errors = [];
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required header fields
+            if (!document.getElementById('posting_date').value) {
+                errors.push('전표일을 입력하세요.');
+                isValid = false;
+            }
+            if (!document.getElementById('entry_type').value) {
+                errors.push('전표 유형을 선택하세요.');
+                isValid = false;
+            }
+
+            // Validate accounts table
+            const rows = document.querySelectorAll('#accountsBody tr');
+            let hasValidRow = false;
+
+            rows.forEach((row, index) => {
+                const account = row.querySelector('[name="account"]').value;
+                const debit = parseFloat(row.querySelector('[name="debit"]').value) || 0;
+                const credit = parseFloat(row.querySelector('[name="credit"]').value) || 0;
+
+                if (account) {
+                    hasValidRow = true;
+                    if (debit === 0 && credit === 0) {
+                        errors.push(`${index + 1}행: 차변 또는 대변 금액을 입력하세요.`);
+                        isValid = false;
+                    }
+                }
+            });
+
+            if (!hasValidRow) {
+                errors.push('최소 한 개의 분개 항목을 입력하세요.');
+                isValid = false;
+            }
+
+            // Validate balance
+            const totalDebit = parseFloat(document.getElementById('total_debit').value) || 0;
+            const totalCredit = parseFloat(document.getElementById('total_credit').value) || 0;
+
+            if (totalDebit !== totalCredit) {
+                errors.push('차변과 대변의 합계가 일치해야 합니다.');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                alert(errors.join('\n'));
+            }
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Handle nested data structure from ERP-Core
+            // Format: { data: { options: {...}, defaults: {...} } }
+            const options = data.data?.options || data.options || {};
+            const defaults = data.data?.defaults || data.defaults || {};
+
+            // Set default values
+            if (defaults.posting_date) {
+                document.getElementById('posting_date').value = defaults.posting_date;
+            }
+            if (defaults.entry_type) {
+                document.getElementById('entry_type').value = defaults.entry_type;
+            }
+
+            // Also handle direct field values (for edit mode)
+            if (data.posting_date) {
+                document.getElementById('posting_date').value = data.posting_date;
+            }
+            if (data.entry_type) {
+                document.getElementById('entry_type').value = data.entry_type;
+            }
+            if (data.user_remark) {
+                document.getElementById('user_remark').value = data.user_remark;
+            }
+
+            // Populate dropdowns from fetched data
+            // ERP-Core format: options.account, options.cost_center
+            if (options.account) {
+                accountOptions = options.account;
+                updateDropdownOptions();
+            }
+            if (options.cost_center) {
+                costCenterOptions = options.cost_center;
+                updateDropdownOptions();
+            }
+
+            // Populate accounts table if editing
+            if (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) {
+                const tbody = document.getElementById('accountsBody');
+                tbody.innerHTML = ''; // Clear existing rows
+
+                data.accounts.forEach(item => {
+                    addAccountRow();
+                    const row = tbody.lastElementChild;
+
+                    if (item.account) row.querySelector('[name="account"]').value = item.account;
+                    if (item.cost_center) row.querySelector('[name="cost_center"]').value = item.cost_center;
+                    if (item.debit) row.querySelector('[name="debit"]').value = item.debit;
+                    if (item.credit) row.querySelector('[name="credit"]').value = item.credit;
+                    if (item.remark) row.querySelector('[name="remark"]').value = item.remark;
+                });
+
+                updateTotals();
+            }
+        }
+
+        // Update dropdown options in existing rows
+        function updateDropdownOptions() {
+            document.querySelectorAll('.account-select').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `<option value="">선택</option>${accountOptions.map(opt =>
+                    `<option value="${opt.value}"${opt.value === currentValue ? ' selected' : ''}>${opt.label}</option>`
+                ).join('')}`;
+            });
+
+            document.querySelectorAll('.cost-center-select').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `<option value="">선택</option>${costCenterOptions.map(opt =>
+                    `<option value="${opt.value}"${opt.value === currentValue ? ' selected' : ''}>${opt.label}</option>`
+                ).join('')}`;
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            const tbody = document.getElementById('accountsBody');
+            tbody.innerHTML = '';
+            addAccountRow();
+            updateTotals();
+        }
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'journal-entry-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

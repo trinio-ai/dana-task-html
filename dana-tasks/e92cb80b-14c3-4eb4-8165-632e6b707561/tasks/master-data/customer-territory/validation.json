@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"customer": {"type": "string", "minLength": 1}, "territory": {"type": "string", "minLength": 1}, "sales_person": {"type": "string"}, "sales_partner": {"type": "string"}}, "required": ["customer", "territory"]}

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"plan_id": {"type": "string"}, "for_warehouse": {"type": "string", "enum": ["중앙창고", "공장창고", "지점창고"]}, "confirm": {"type": "boolean"}}, "required": ["plan_id", "for_warehouse", "confirm"]}

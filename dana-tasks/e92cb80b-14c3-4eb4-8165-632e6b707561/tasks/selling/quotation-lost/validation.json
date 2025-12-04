@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"quotation": {"type": "string", "minLength": 1}, "lost_reason": {"type": "string", "minLength": 1}, "competitor": {"type": ["string", "null"]}, "feedback": {"type": ["string", "null"]}}, "required": ["quotation", "lost_reason"]}

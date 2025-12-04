@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .customer-summary { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; }
+        .summary-cards { display: flex; gap: 15px; margin-top: 15px; }
+        .summary-card { flex: 1; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #ddd; }
+        .summary-value { font-size: 24px; font-weight: bold; }
+        .summary-label { font-size: 12px; color: #666; }
+        .tabs { display: flex; border-bottom: 2px solid #ddd; margin-top: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab.active { border-bottom-color: #007bff; color: #007bff; font-weight: bold; }
+        .tab-content { display: none; padding: 15px 0; }
+        .tab-content.active { display: block; }
+        .orders-table { width: 100%; border-collapse: collapse; }
+        .orders-table th, .orders-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .orders-table th { background: #f5f5f5; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+        .no-data { text-align: center; padding: 30px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="customer">Select Customer <span class="required">*</span></label>
+                        <select id="customer" name="customer" required onchange="loadCustomerOrders()"
+                                data-fetch-endpoint="/api/erp/selling/customers">
+                            <option value="">Select Customer</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="from_date">From Date</label>
+                        <input type="date" id="from_date" name="from_date" onchange="loadCustomerOrders()">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="to_date">To Date</label>
+                        <input type="date" id="to_date" name="to_date" onchange="loadCustomerOrders()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="customer-summary" id="customerSummary" style="display: none;">
+                <h3 id="customer_name">Customer Name</h3>
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-value" id="total_orders">0</div>
+                        <div class="summary-label">Total Orders</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="total_revenue">0</div>
+                        <div class="summary-label">Total Revenue</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="outstanding">0</div>
+                        <div class="summary-label">Outstanding</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="last_order">-</div>
+                        <div class="summary-label">Last Order</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tabs" id="tabs" style="display: none;">
+                <div class="tab active" onclick="showTab('quotations')">Quotations</div>
+                <div class="tab" onclick="showTab('orders')">Sales Orders</div>
+                <div class="tab" onclick="showTab('deliveries')">Deliveries</div>
+                <div class="tab" onclick="showTab('invoices')">Invoices</div>
+            </div>
+
+            <div class="tab-content active" id="quotations-content">
+                <table class="orders-table">
+                    <thead>
+                        <tr><th>Quotation #</th><th>Date</th><th>Valid Until</th><th>Amount</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="quotationsBody"></tbody>
+                </table>
+            </div>
+
+            <div class="tab-content" id="orders-content">
+                <table class="orders-table">
+                    <thead>
+                        <tr><th>Order #</th><th>Date</th><th>Delivery Date</th><th>Amount</th><th>% Delivered</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="ordersBody"></tbody>
+                </table>
+            </div>
+
+            <div class="tab-content" id="deliveries-content">
+                <table class="orders-table">
+                    <thead>
+                        <tr><th>DN #</th><th>Date</th><th>Items</th><th>Amount</th><th>% Billed</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="deliveriesBody"></tbody>
+                </table>
+            </div>
+
+            <div class="tab-content" id="invoices-content">
+                <table class="orders-table">
+                    <thead>
+                        <tr><th>Invoice #</th><th>Date</th><th>Due Date</th><th>Amount</th><th>Outstanding</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="invoicesBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-content`).classList.add('active');
+        }
+
+        function loadCustomerOrders() {
+            const customer = document.getElementById('customer').value;
+            if (!customer) {
+                document.getElementById('customerSummary').style.display = 'none';
+                document.getElementById('tabs').style.display = 'none';
+                return;
+            }
+            let endpoint = `/api/v1/erp/selling/customers/${customer}/orders`;
+            const params = new URLSearchParams();
+            const fromDate = document.getElementById('from_date').value;
+            const toDate = document.getElementById('to_date').value;
+            if (fromDate) params.append('from_date', fromDate);
+            if (toDate) params.append('to_date', toDate);
+            if (params.toString()) endpoint += '?' + params.toString();
+
+            const msg = { type: 'fetchData', endpoint: endpoint };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderData(data) {
+            document.getElementById('customer_name').textContent = data.customer_name || data.customer || 'Customer';
+
+            const quotations = data.quotations || [];
+            const orders = data.sales_orders || [];
+            const deliveries = data.delivery_notes || [];
+            const invoices = data.sales_invoices || [];
+
+            // Summary
+            document.getElementById('total_orders').textContent = orders.length;
+            const totalRevenue = invoices.reduce((sum, i) => sum + (i.grand_total || 0), 0);
+            document.getElementById('total_revenue').textContent = totalRevenue.toLocaleString('ko-KR', {maximumFractionDigits: 0});
+            const outstanding = invoices.reduce((sum, i) => sum + (i.outstanding_amount || 0), 0);
+            document.getElementById('outstanding').textContent = outstanding.toLocaleString('ko-KR', {maximumFractionDigits: 0});
+            const lastOrder = orders.length > 0 ? orders[0].transaction_date : '-';
+            document.getElementById('last_order').textContent = lastOrder;
+
+            // Quotations
+            document.getElementById('quotationsBody').innerHTML = quotations.length === 0
+                ? '<tr><td colspan="5" class="no-data">No quotations found</td></tr>'
+                : quotations.map(q => `
+                    <tr>
+                        <td>${q.name}</td>
+                        <td>${q.transaction_date || '-'}</td>
+                        <td>${q.valid_till || '-'}</td>
+                        <td>${(q.grand_total || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2})}</td>
+                        <td><span class="status-badge">${q.status || 'Draft'}</span></td>
+                    </tr>
+                `).join('');
+
+            // Orders
+            document.getElementById('ordersBody').innerHTML = orders.length === 0
+                ? '<tr><td colspan="6" class="no-data">No orders found</td></tr>'
+                : orders.map(o => `
+                    <tr>
+                        <td>${o.name}</td>
+                        <td>${o.transaction_date || '-'}</td>
+                        <td>${o.delivery_date || '-'}</td>
+                        <td>${(o.grand_total || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2})}</td>
+                        <td>${(o.per_delivered || 0).toFixed(1)}%</td>
+                        <td><span class="status-badge">${o.status || 'Draft'}</span></td>
+                    </tr>
+                `).join('');
+
+            // Deliveries
+            document.getElementById('deliveriesBody').innerHTML = deliveries.length === 0
+                ? '<tr><td colspan="6" class="no-data">No deliveries found</td></tr>'
+                : deliveries.map(d => `
+                    <tr>
+                        <td>${d.name}</td>
+                        <td>${d.posting_date || '-'}</td>
+                        <td>${d.total_qty || 0}</td>
+                        <td>${(d.grand_total || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2})}</td>
+                        <td>${(d.per_billed || 0).toFixed(1)}%</td>
+                        <td><span class="status-badge">${d.status || 'Draft'}</span></td>
+                    </tr>
+                `).join('');
+
+            // Invoices
+            document.getElementById('invoicesBody').innerHTML = invoices.length === 0
+                ? '<tr><td colspan="6" class="no-data">No invoices found</td></tr>'
+                : invoices.map(i => `
+                    <tr>
+                        <td>${i.name}</td>
+                        <td>${i.posting_date || '-'}</td>
+                        <td>${i.due_date || '-'}</td>
+                        <td>${(i.grand_total || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2})}</td>
+                        <td>${(i.outstanding_amount || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2})}</td>
+                        <td><span class="status-badge">${i.status || 'Draft'}</span></td>
+                    </tr>
+                `).join('');
+
+            document.getElementById('customerSummary').style.display = 'block';
+            document.getElementById('tabs').style.display = 'flex';
+        }
+
+        function getTaskInput() {
+            return {
+                customer: document.getElementById('customer').value,
+                from_date: document.getElementById('from_date').value || null,
+                to_date: document.getElementById('to_date').value || null
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('customer').value) {
+                alert('Please select a customer');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.customer || data.quotations || data.sales_orders) {
+                renderData(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('customer');
+                select.innerHTML = '<option value="">Select Customer</option>' +
+                    items.map(c => `<option value="${c.name}">${c.label || c.customer_name || c.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

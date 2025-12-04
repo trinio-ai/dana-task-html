@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"plan_id": {"type": "string"}, "include_subassemblies": {"type": "boolean"}, "ignore_existing_ordered": {"type": "boolean"}}, "required": ["plan_id"]}

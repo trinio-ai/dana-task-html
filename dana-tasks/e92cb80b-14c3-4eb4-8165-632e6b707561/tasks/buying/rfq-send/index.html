@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .supplier-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+        .supplier-badge { background: #e9ecef; padding: 6px 12px; border-radius: 15px; font-size: 0.9em; }
+        .checkbox-field { display: flex; align-items: center; gap: 10px; margin: 15px 0; }
+        .checkbox-field input { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="rfq">Request for Quotation <span class="required">*</span></label>
+                <select id="rfq" name="rfq" required onchange="loadRFQ()"
+                        data-fetch-endpoint="/api/erp/buying/rfq?docstatus=0">
+                    <option value="">Select RFQ</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="rfqDetails" style="display: none;">
+                <h4>RFQ Details</h4>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Required By:</span>
+                    <span id="schedule_date">-</span>
+                </div>
+            </div>
+
+            <div id="itemsSection" style="display: none;">
+                <h4>Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>UOM</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="suppliersSection" style="display: none;">
+                <h4>Suppliers to Send To</h4>
+                <div class="supplier-list" id="supplierList">
+                </div>
+            </div>
+
+            <div class="checkbox-field" id="emailField" style="display: none;">
+                <input type="checkbox" id="send_email" name="send_email" checked>
+                <label for="send_email">Send email notification to suppliers</label>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentRFQ = null;
+
+        function loadRFQ() {
+            const rfqId = document.getElementById('rfq').value;
+            if (!rfqId) {
+                document.getElementById('rfqDetails').style.display = 'none';
+                document.getElementById('itemsSection').style.display = 'none';
+                document.getElementById('suppliersSection').style.display = 'none';
+                document.getElementById('emailField').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/rfq/${rfqId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderRFQ(data) {
+            currentRFQ = data;
+
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+            document.getElementById('schedule_date').textContent = data.schedule_date || '-';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty}</td>
+                    <td>${item.uom || '-'}</td>
+                </tr>
+            `).join('');
+
+            const supplierList = document.getElementById('supplierList');
+            supplierList.innerHTML = (data.suppliers || []).map(s => `
+                <span class="supplier-badge">${s.supplier_name || s.supplier}</span>
+            `).join('');
+
+            document.getElementById('rfqDetails').style.display = 'block';
+            document.getElementById('itemsSection').style.display = 'block';
+            document.getElementById('suppliersSection').style.display = 'block';
+            document.getElementById('emailField').style.display = 'flex';
+        }
+
+        function getTaskInput() {
+            return {
+                rfq: document.getElementById('rfq').value,
+                send_email: document.getElementById('send_email').checked
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.rfq) { alert('Please select an RFQ'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.items) {
+                renderRFQ(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

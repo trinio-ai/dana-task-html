@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"journal_entry": {"type": "string"}, "confirm_submit": {"type": "boolean"}}, "required": ["journal_entry"]}

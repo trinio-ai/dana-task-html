@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer">Customer <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="customer" name="customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select customer</option>
+                </select>
+            </div>
+
+            <fieldset>
+                <legend>Contact Information</legend>
+
+                <div class="form-field">
+                    <label for="first_name">First Name <span class="required">*</span></label>
+                    <input type="text" id="first_name" name="first_name" required maxlength="140">
+                </div>
+
+                <div class="form-field">
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" maxlength="140">
+                </div>
+
+                <div class="form-field">
+                    <label for="designation">Job Title / Designation</label>
+                    <input type="text" id="designation" name="designation" placeholder="e.g., Purchasing Manager">
+                </div>
+
+                <div class="form-field">
+                    <label for="department">Department</label>
+                    <input type="text" id="department" name="department" placeholder="e.g., Procurement">
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Contact Details</legend>
+
+                <div class="form-field">
+                    <label for="email_id">Email <span class="required">*</span></label>
+                    <input type="email" id="email_id" name="email_id" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" name="phone">
+                </div>
+
+                <div class="form-field">
+                    <label for="mobile_no">Mobile</label>
+                    <input type="tel" id="mobile_no" name="mobile_no">
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Contact Role</legend>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_primary_contact" name="is_primary_contact">
+                        <span>Primary Contact</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_billing_contact" name="is_billing_contact">
+                        <span>Billing Contact (receives invoices)</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_shipping_contact" name="is_shipping_contact">
+                        <span>Shipping Contact (receives delivery notices)</span>
+                    </label>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            data.is_primary_contact = document.getElementById('is_primary_contact').checked;
+            data.is_billing_contact = document.getElementById('is_billing_contact').checked;
+            data.is_shipping_contact = document.getElementById('is_shipping_contact').checked;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('customer').value) errors.push('Customer is required');
+            if (!document.getElementById('first_name').value) errors.push('First name is required');
+            if (!document.getElementById('email_id').value) errors.push('Email is required');
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') input.checked = !!data[key];
+                    else input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

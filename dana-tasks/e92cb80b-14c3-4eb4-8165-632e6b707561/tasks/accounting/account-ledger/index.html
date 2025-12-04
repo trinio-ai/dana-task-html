@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .ledger-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .ledger-table th, .ledger-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        .ledger-table th { background: #f8f9fa; font-weight: 600; }
+        .ledger-table .text-right { text-align: right; }
+        .debit { color: #dc3545; }
+        .credit { color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="account">Account <span class="required">*</span></label>
+                <select id="account" name="account" required data-fetch-endpoint="/api/erp/accounts">
+                    <option value="">Select Account</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="from_date">From Date <span class="required">*</span></label>
+                <input type="date" id="from_date" name="from_date" required>
+            </div>
+            <div class="form-field">
+                <label for="to_date">To Date <span class="required">*</span></label>
+                <input type="date" id="to_date" name="to_date" required>
+            </div>
+            <div class="form-field">
+                <label for="party_type">Party Type</label>
+                <select id="party_type" name="party_type">
+                    <option value="">All</option>
+                    <option value="Customer">Customer</option>
+                    <option value="Supplier">Supplier</option>
+                </select>
+            </div>
+        </form>
+
+        <div id="ledgerResults" style="display: none; overflow-x: auto;">
+            <table class="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Voucher Type</th>
+                        <th>Voucher No</th>
+                        <th>Remarks</th>
+                        <th class="text-right">Debit</th>
+                        <th class="text-right">Credit</th>
+                        <th class="text-right">Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="ledgerBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                account: document.getElementById('account').value,
+                from_date: document.getElementById('from_date').value,
+                to_date: document.getElementById('to_date').value,
+                party_type: document.getElementById('party_type').value
+            };
+        }
+
+        function validateForm() {
+            let isValid = true;
+            ['account', 'from_date', 'to_date'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el.value) {
+                    el.closest('.form-field').classList.add('error');
+                    isValid = false;
+                }
+            });
+            return isValid;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            ['account', 'from_date', 'to_date', 'party_type'].forEach(key => {
+                if (data[key]) document.getElementById(key).value = data[key];
+            });
+
+            if (data.entries && data.entries.length > 0) {
+                const tbody = document.getElementById('ledgerBody');
+                tbody.innerHTML = data.entries.map(e => `
+                    <tr>
+                        <td>${e.posting_date}</td>
+                        <td>${e.voucher_type}</td>
+                        <td>${e.voucher_no}</td>
+                        <td>${e.remarks || ''}</td>
+                        <td class="text-right debit">${e.debit ? e.debit.toFixed(2) : ''}</td>
+                        <td class="text-right credit">${e.credit ? e.credit.toFixed(2) : ''}</td>
+                        <td class="text-right">${e.balance.toFixed(2)}</td>
+                    </tr>
+                `).join('');
+                document.getElementById('ledgerResults').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

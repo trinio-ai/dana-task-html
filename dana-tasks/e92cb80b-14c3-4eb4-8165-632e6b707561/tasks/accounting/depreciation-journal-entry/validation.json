@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"posting_date": {"type": "string"}, "finance_book": {"type": "string"}, "asset_category": {"type": "string", "enum": ["전체", "건물", "차량", "설비", "비품"]}, "frequency": {"type": "string", "enum": ["월별", "분기별", "연간"]}}, "required": ["posting_date", "frequency"]}

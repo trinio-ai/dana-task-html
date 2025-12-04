@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="template_item">Template Item <span class="required">*</span></label>
+                <select id="template_item" name="template_item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select template item</option>
+                </select>
+                <small>Only items marked as templates can be selected</small>
+            </div>
+
+            <div class="form-field">
+                <label for="variant_name">Variant Name <span class="required">*</span></label>
+                <input type="text" id="variant_name" name="variant_name" required placeholder="e.g., T-Shirt - Red - Large">
+            </div>
+
+            <div class="form-field">
+                <label for="attribute_color">Color</label>
+                <select id="attribute_color" name="attribute_color">
+                    <option value="">Select color</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="attribute_size">Size</label>
+                <select id="attribute_size" name="attribute_size">
+                    <option value="">Select size</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="attribute_material">Material</label>
+                <select id="attribute_material" name="attribute_material">
+                    <option value="">Select material</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="variant_code">Variant Code</label>
+                <input type="text" id="variant_code" name="variant_code" placeholder="Auto-generated if blank">
+                <small>Leave blank to auto-generate based on attributes</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('template_item').value) {
+                errors.push('Template item is required');
+            }
+            if (!document.getElementById('variant_name').value.trim()) {
+                errors.push('Variant name is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

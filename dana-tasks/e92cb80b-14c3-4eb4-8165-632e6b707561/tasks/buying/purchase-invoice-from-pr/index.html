@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .receipt-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input { width: 80px; padding: 4px; }
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="purchase_receipt">Purchase Receipt <span class="required">*</span></label>
+                <select id="purchase_receipt" name="purchase_receipt" required data-fetch-endpoint="/api/erp/purchase-receipts?docstatus=1">
+                    <option value="">Select Submitted Purchase Receipt</option>
+                </select>
+            </div>
+
+            <div id="receiptInfo" class="receipt-info" style="display: none;">
+                <h4>Receipt Details</h4>
+                <div class="info-row">
+                    <span>Supplier:</span>
+                    <span id="supplier">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Receipt Date:</span>
+                    <span id="receipt_date">-</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> Items from the purchase receipt will be copied to the invoice. Adjust quantities if needed.
+            </div>
+
+            <div class="form-field">
+                <label for="posting_date">Invoice Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <h4>Items to Invoice</h4>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Received</th>
+                        <th>Already Billed</th>
+                        <th>Qty to Bill</th>
+                        <th>Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsBody">
+                    <tr><td colspan="5">Select a purchase receipt to see items</td></tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr[data-item]').forEach(row => {
+                const qtyInput = row.querySelector('[name="qty_to_bill"]');
+                const qty = parseFloat(qtyInput?.value) || 0;
+                if (qty > 0) {
+                    items.push({
+                        item_code: row.dataset.item,
+                        qty: qty,
+                        rate: parseFloat(row.dataset.rate) || 0
+                    });
+                }
+            });
+            return {
+                purchase_receipt: document.getElementById('purchase_receipt').value,
+                posting_date: document.getElementById('posting_date').value,
+                items
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('purchase_receipt').value) {
+                alert('Please select a purchase receipt');
+                return false;
+            }
+            if (!document.getElementById('posting_date').value) {
+                alert('Please select invoice date');
+                return false;
+            }
+            const items = getTaskInput().items;
+            if (items.length === 0) {
+                alert('Please enter quantity for at least one item');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.purchase_receipt) document.getElementById('purchase_receipt').value = data.purchase_receipt;
+            if (data.supplier) {
+                document.getElementById('supplier').textContent = data.supplier_name || data.supplier;
+                document.getElementById('receipt_date').textContent = data.posting_date || '-';
+
+                if (data.items && data.items.length > 0) {
+                    const tbody = document.getElementById('itemsBody');
+                    tbody.innerHTML = '';
+                    data.items.forEach(item => {
+                        const remaining = (item.qty || 0) - (item.billed_qty || 0);
+                        const row = document.createElement('tr');
+                        row.dataset.item = item.item_code;
+                        row.dataset.rate = item.rate || 0;
+                        row.innerHTML = `
+                            <td>${item.item_name || item.item_code}</td>
+                            <td>${item.qty}</td>
+                            <td>${item.billed_qty || 0}</td>
+                            <td><input type="number" name="qty_to_bill" min="0" max="${remaining}" value="${remaining}" step="0.01"></td>
+                            <td>${(item.rate || 0).toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+                document.getElementById('receiptInfo').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .compare-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .compare-table th, .compare-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .compare-table th { background: #f5f5f5; }
+        .compare-table .item-row { background: #e9ecef; font-weight: bold; }
+        .best-price { background: #d4edda !important; color: #155724; }
+        .supplier-header { writing-mode: horizontal-tb; min-width: 120px; }
+        .no-results { text-align: center; padding: 40px; color: #666; }
+        .summary { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="rfq">Request for Quotation <span class="required">*</span></label>
+                <select id="rfq" name="rfq" required onchange="loadComparison()"
+                        data-fetch-endpoint="/api/erp/buying/rfq?docstatus=1">
+                    <option value="">Select RFQ</option>
+                </select>
+            </div>
+
+            <div id="comparisonSection" style="display: none;">
+                <div class="summary" id="summarySection">
+                    <h4>Summary</h4>
+                    <div class="summary-row">
+                        <span>Total Suppliers Quoted:</span>
+                        <span id="totalSuppliers">0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Items Compared:</span>
+                        <span id="totalItems">0</span>
+                    </div>
+                </div>
+
+                <h4>Price Comparison</h4>
+                <div id="comparisonTable">
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadComparison() {
+            const rfqId = document.getElementById('rfq').value;
+            if (!rfqId) {
+                document.getElementById('comparisonSection').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/supplier-quotations/compare?rfq=${rfqId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderComparison(data) {
+            if (!data.items || data.items.length === 0) {
+                document.getElementById('comparisonTable').innerHTML = '<div class="no-results">No quotations found for this RFQ</div>';
+                document.getElementById('comparisonSection').style.display = 'block';
+                return;
+            }
+
+            const suppliers = new Set();
+            data.items.forEach(item => {
+                (item.quotations || []).forEach(q => suppliers.add(q.supplier));
+            });
+            const supplierList = Array.from(suppliers);
+
+            document.getElementById('totalSuppliers').textContent = supplierList.length;
+            document.getElementById('totalItems').textContent = data.items.length;
+
+            let html = `
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            ${supplierList.map(s => `<th class="supplier-header">${s}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.items.forEach(item => {
+                // Find best price for this item
+                let bestPrice = Infinity;
+                (item.quotations || []).forEach(q => {
+                    if (q.rate < bestPrice) bestPrice = q.rate;
+                });
+
+                html += `
+                    <tr>
+                        <td>${item.item_name || item.item_code}</td>
+                        <td>${item.qty} ${item.uom || ''}</td>
+                `;
+
+                supplierList.forEach(supplier => {
+                    const quotation = (item.quotations || []).find(q => q.supplier === supplier);
+                    if (quotation) {
+                        const isBest = quotation.rate === bestPrice;
+                        html += `<td class="${isBest ? 'best-price' : ''}">${quotation.rate.toFixed(2)}</td>`;
+                    } else {
+                        html += `<td>-</td>`;
+                    }
+                });
+
+                html += `</tr>`;
+            });
+
+            html += `</tbody></table>`;
+            document.getElementById('comparisonTable').innerHTML = html;
+            document.getElementById('comparisonSection').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                rfq: document.getElementById('rfq').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.rfq) { alert('Please select an RFQ'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.items) {
+                renderComparison(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

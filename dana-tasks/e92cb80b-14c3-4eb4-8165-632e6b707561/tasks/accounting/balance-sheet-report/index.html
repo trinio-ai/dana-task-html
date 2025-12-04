@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .filters { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .report-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .report-section { margin: 10px 0; }
+        .section-header { font-weight: bold; font-size: 1.1em; background: #e7f3ff; padding: 10px; margin-bottom: 5px; }
+        .report-table { width: 100%; border-collapse: collapse; }
+        .report-table td { padding: 8px; border-bottom: 1px solid #eee; }
+        .report-table td:last-child { text-align: right; }
+        .indent-1 { padding-left: 20px !important; }
+        .indent-2 { padding-left: 40px !important; }
+        .total-row { font-weight: bold; border-top: 2px solid #333; }
+        .subtotal-row { font-weight: bold; background: #f5f5f5; }
+        .balance-check { padding: 15px; margin-top: 20px; border-radius: 8px; text-align: center; font-weight: bold; }
+        .balanced { background: #d4edda; border: 1px solid #28a745; color: #28a745; }
+        .not-balanced { background: #f8d7da; border: 1px solid #dc3545; color: #dc3545; }
+        @media (max-width: 768px) { .report-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="filters">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="company">Company <span class="required">*</span></label>
+                        <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies" onchange="loadReport()">
+                            <option value="">Select Company</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="as_of_date">As of Date <span class="required">*</span></label>
+                        <input type="date" id="as_of_date" name="as_of_date" required onchange="loadReport()">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="periodicity">Periodicity</label>
+                        <select id="periodicity" name="periodicity" onchange="loadReport()">
+                            <option value="Yearly">Yearly</option>
+                            <option value="Half-Yearly">Half-Yearly</option>
+                            <option value="Quarterly">Quarterly</option>
+                            <option value="Monthly">Monthly</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="cost_center">Cost Center</label>
+                        <select id="cost_center" name="cost_center" data-fetch-endpoint="/api/erp/cost-centers" onchange="loadReport()">
+                            <option value="">All Cost Centers</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="project">Project</label>
+                        <select id="project" name="project" data-fetch-endpoint="/api/erp/projects" onchange="loadReport()">
+                            <option value="">All Projects</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-container">
+                <div class="report-section">
+                    <div class="section-header">Assets</div>
+                    <table class="report-table">
+                        <tbody id="assetsBody">
+                            <tr><td colspan="2">No data loaded</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <div class="report-section">
+                        <div class="section-header">Liabilities</div>
+                        <table class="report-table">
+                            <tbody id="liabilitiesBody">
+                                <tr><td colspan="2">No data loaded</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="report-section">
+                        <div class="section-header">Equity</div>
+                        <table class="report-table">
+                            <tbody id="equityBody">
+                                <tr><td colspan="2">No data loaded</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="balanceCheck" class="balance-check" style="display: none;"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('as_of_date').valueAsDate = new Date();
+
+        function loadReport() {
+            const company = document.getElementById('company').value;
+            const asOfDate = document.getElementById('as_of_date').value;
+
+            if (!company || !asOfDate) return;
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: '/api/v1/erp/accounting/balance-sheet',
+                filters: getTaskInput()
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderAccounts(containerId, accounts, totalLabel) {
+            const tbody = document.getElementById(containerId);
+            if (!accounts || accounts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2">No entries</td></tr>';
+                return 0;
+            }
+
+            let total = 0;
+            tbody.innerHTML = accounts.map(acc => {
+                total += acc.amount || 0;
+                const indentClass = acc.indent ? `indent-${acc.indent}` : '';
+                const rowClass = acc.is_group ? 'subtotal-row' : '';
+                return `
+                    <tr class="${rowClass}">
+                        <td class="${indentClass}">${acc.account_name || acc.account}</td>
+                        <td>${(acc.amount || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML += `
+                <tr class="total-row">
+                    <td>${totalLabel}</td>
+                    <td>${total.toFixed(2)}</td>
+                </tr>
+            `;
+
+            return total;
+        }
+
+        function getTaskInput() {
+            return {
+                company: document.getElementById('company').value,
+                as_of_date: document.getElementById('as_of_date').value,
+                cost_center: document.getElementById('cost_center').value || null,
+                project: document.getElementById('project').value || null,
+                periodicity: document.getElementById('periodicity').value,
+                include_default_book_entries: true
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.company) { alert('Please select company'); return false; }
+            if (!data.as_of_date) { alert('Please select as of date'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            const totalAssets = renderAccounts('assetsBody', data.assets, 'Total Assets');
+            const totalLiabilities = renderAccounts('liabilitiesBody', data.liabilities, 'Total Liabilities');
+            const totalEquity = renderAccounts('equityBody', data.equity, 'Total Equity');
+
+            const liabEquity = totalLiabilities + totalEquity;
+            const balanceCheck = document.getElementById('balanceCheck');
+            balanceCheck.style.display = 'block';
+
+            if (Math.abs(totalAssets - liabEquity) < 0.01) {
+                balanceCheck.className = 'balance-check balanced';
+                balanceCheck.textContent = `Balance Sheet is balanced. Assets (${totalAssets.toFixed(2)}) = Liabilities + Equity (${liabEquity.toFixed(2)})`;
+            } else {
+                balanceCheck.className = 'balance-check not-balanced';
+                balanceCheck.textContent = `Balance Sheet is NOT balanced! Assets (${totalAssets.toFixed(2)}) ≠ Liabilities + Equity (${liabEquity.toFixed(2)}). Difference: ${(totalAssets - liabEquity).toFixed(2)}`;
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

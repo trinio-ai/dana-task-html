@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"batch_id": {"type": "string", "minLength": 1}, "expiry_date": {"type": ["string", "null"], "format": "date"}, "disabled": {"type": "boolean"}}, "required": ["batch_id"]}

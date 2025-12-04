@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"sales_order": {"type": "string", "minLength": 1}, "delivery_date": {"type": "string", "format": "date"}, "delivery_warehouse": {"type": ["string", "null"]}}, "required": ["sales_order", "delivery_date"]}

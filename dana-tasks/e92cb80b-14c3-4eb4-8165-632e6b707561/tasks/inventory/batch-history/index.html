@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .batch-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .info-item { padding: 8px; }
+        .info-label { font-size: 12px; color: #666; }
+        .info-value { font-weight: bold; }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .history-table th, .history-table td { padding: 10px; text-align: left; border: 1px solid #ddd; }
+        .history-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="batch_id">Batch <span class="required">*</span></label>
+                <select id="batch_id" name="batch_id" required onchange="loadHistory()"
+                        data-fetch-endpoint="/api/erp/inventory/batches">
+                    <option value="">Select Batch</option>
+                </select>
+            </div>
+
+            <div id="batchInfo" class="batch-info" style="display: none;">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Item</div>
+                        <div class="info-value" id="info_item">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Manufacturing Date</div>
+                        <div class="info-value" id="info_mfg_date">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Expiry Date</div>
+                        <div class="info-value" id="info_expiry">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Current Qty</div>
+                        <div class="info-value" id="info_qty">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Supplier</div>
+                        <div class="info-value" id="info_supplier">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Status</div>
+                        <div class="info-value" id="info_status">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="historyContainer" style="display: none;">
+                <h4>Transaction History</h4>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Document</th>
+                            <th>Type</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">Qty Change</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadHistory() {
+            const batchId = document.getElementById('batch_id').value;
+            if (!batchId) {
+                document.getElementById('batchInfo').style.display = 'none';
+                document.getElementById('historyContainer').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/batch/${batchId}/history` }, '*');
+        }
+
+        function renderHistory(data) {
+            document.getElementById('info_item').textContent = data.item || '-';
+            document.getElementById('info_mfg_date').textContent = data.manufacturing_date || '-';
+            document.getElementById('info_expiry').textContent = data.expiry_date || '-';
+            document.getElementById('info_qty').textContent = (data.batch_qty || 0).toLocaleString();
+            document.getElementById('info_supplier').textContent = data.supplier || '-';
+            document.getElementById('info_status').textContent = data.disabled ? 'Disabled' : 'Active';
+
+            const tbody = document.getElementById('historyBody');
+            tbody.innerHTML = '';
+
+            const transactions = data.transactions || [];
+            transactions.forEach(txn => {
+                const qty = txn.actual_qty || 0;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${txn.posting_date || '-'}</td>
+                    <td>${txn.voucher_no || '-'}</td>
+                    <td>${txn.voucher_type || '-'}</td>
+                    <td>${txn.warehouse || '-'}</td>
+                    <td class="text-right ${qty >= 0 ? 'positive' : 'negative'}">${qty >= 0 ? '+' : ''}${qty.toLocaleString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#666;">No transactions found</td></tr>';
+            }
+
+            document.getElementById('batchInfo').style.display = 'block';
+            document.getElementById('historyContainer').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { batch_id: document.getElementById('batch_id').value };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('batch_id').value) {
+                alert('Please select a batch');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.item !== undefined || data.transactions !== undefined) {
+                renderHistory(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

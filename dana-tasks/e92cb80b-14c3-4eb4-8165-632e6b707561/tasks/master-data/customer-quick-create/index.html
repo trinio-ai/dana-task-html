@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="customer_name">Customer Name <span class="required">*</span></label>
+                <input type="text" id="customer_name" name="customer_name" required maxlength="140" placeholder="Enter customer name">
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer_type">Customer Type</label>
+                </div>
+                <select id="customer_type" name="customer_type">
+                    <option value="Company" selected>Company</option>
+                    <option value="Individual">Individual</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer_group">Customer Group <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-group-create')">+ New Customer Group</button>
+                </div>
+                <select id="customer_group" name="customer_group" required data-dependency-task="customer-group-create" data-dependency-label="+ New Customer Group">
+                    <option value="">Select customer group</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="email_id">Email (optional)</label>
+                <input type="email" id="email_id" name="email_id" placeholder="customer@example.com">
+            </div>
+
+            <div class="form-field">
+                <label for="mobile_no">Phone (optional)</label>
+                <input type="tel" id="mobile_no" name="mobile_no" placeholder="+82-10-1234-5678">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            data.is_quick_create = true;
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            const customerName = document.getElementById('customer_name').value;
+            if (!customerName || customerName.trim() === '') {
+                errors.push('Customer name is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            if (options.customer_group) {
+                const select = document.getElementById('customer_group');
+                select.innerHTML = '<option value="">Select customer group</option>' + options.customer_group.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+            }
+
+            if (options.customer_type) {
+                const select = document.getElementById('customer_type');
+                select.innerHTML = options.customer_type.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+            }
+
+            if (defaults.customer_type) {
+                const select = document.getElementById('customer_type');
+                if (select) select.value = defaults.customer_type;
+            }
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input && !['customer_group','customer_type'].includes(key)) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

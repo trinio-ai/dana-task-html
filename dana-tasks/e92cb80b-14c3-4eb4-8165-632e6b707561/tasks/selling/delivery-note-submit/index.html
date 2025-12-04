@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .delivery-details { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .info-box { background: #d1ecf1; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="delivery_note">Select Delivery Note <span class="required">*</span></label>
+                <select id="delivery_note" name="delivery_note" required onchange="loadDeliveryNote()"
+                        data-fetch-endpoint="/api/erp/selling/delivery-notes?docstatus=0">
+                    <option value="">Select Delivery Note</option>
+                </select>
+            </div>
+
+            <div class="delivery-details" id="deliveryDetails" style="display: none;">
+                <h4>Delivery Note Details</h4>
+                <div class="detail-row">
+                    <span>Customer:</span>
+                    <span id="detail_customer">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Delivery Date:</span>
+                    <span id="detail_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Warehouse:</span>
+                    <span id="detail_warehouse">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Grand Total:</span>
+                    <span id="detail_total">-</span>
+                </div>
+
+                <h4 style="margin-top: 15px;">Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="info-box" id="infoBox" style="display: none;">
+                <strong>Submit Action:</strong>
+                <p>Submitting this delivery note will:</p>
+                <ul>
+                    <li>Deduct stock from the source warehouse</li>
+                    <li>Update the linked sales order delivery status</li>
+                    <li>Create stock ledger entries</li>
+                </ul>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadDeliveryNote() {
+            const deliveryNote = document.getElementById('delivery_note').value;
+            if (!deliveryNote) {
+                document.getElementById('deliveryDetails').style.display = 'none';
+                document.getElementById('infoBox').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/delivery-notes/${deliveryNote}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderDetails(data) {
+            document.getElementById('detail_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('detail_date').textContent = data.posting_date || '-';
+            document.getElementById('detail_warehouse').textContent = data.set_warehouse || '-';
+            document.getElementById('detail_total').textContent = (data.grand_total || 0).toFixed(2);
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty}</td>
+                    <td>${(item.rate || 0).toFixed(2)}</td>
+                    <td>${(item.amount || 0).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('deliveryDetails').style.display = 'block';
+            document.getElementById('infoBox').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { delivery_note: document.getElementById('delivery_note').value };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('delivery_note').value) {
+                alert('Please select a delivery note');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.delivery_note || data.name) {
+                renderDetails(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('delivery_note');
+                select.innerHTML = '<option value="">Select Delivery Note</option>' +
+                    items.map(d => `<option value="${d.name}">${d.label || d.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .customer-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .follow-up-history { margin-top: 20px; }
+        .history-item { background: #fff; border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
+        .history-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .history-date { font-weight: bold; color: #007bff; }
+        .history-type { background: #e9ecef; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .priority-high { border-left: 4px solid #dc3545; }
+        .priority-medium { border-left: 4px solid #ffc107; }
+        .priority-low { border-left: 4px solid #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="customer">Select Customer <span class="required">*</span></label>
+                <select id="customer" name="customer" required onchange="loadCustomer()"
+                        data-fetch-endpoint="/api/erp/selling/customers">
+                    <option value="">Select Customer</option>
+                </select>
+            </div>
+
+            <div class="customer-info" id="customerInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_name">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Contact:</span>
+                    <span id="info_contact">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Last Order:</span>
+                    <span id="info_last_order">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Outstanding:</span>
+                    <span id="info_outstanding">-</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="follow_up_date">Follow-up Date <span class="required">*</span></label>
+                        <input type="date" id="follow_up_date" name="follow_up_date" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="contact_type">Contact Type <span class="required">*</span></label>
+                        <select id="contact_type" name="contact_type" required>
+                            <option value="">Select Type</option>
+                            <option value="Call">Phone Call</option>
+                            <option value="Email">Email</option>
+                            <option value="Meeting">Meeting</option>
+                            <option value="Visit">Site Visit</option>
+                            <option value="SMS">SMS</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="priority">Priority</label>
+                        <select id="priority" name="priority">
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="subject">Subject <span class="required">*</span></label>
+                <input type="text" id="subject" name="subject" required placeholder="Brief description of the follow-up">
+            </div>
+
+            <div class="form-field">
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" rows="4" placeholder="Detailed notes about the conversation or meeting..."></textarea>
+            </div>
+
+            <div class="form-field">
+                <label for="next_action">Next Action</label>
+                <input type="text" id="next_action" name="next_action" placeholder="What should be done next?">
+            </div>
+
+            <div class="follow-up-history" id="followUpHistory" style="display: none;">
+                <h4>Previous Follow-ups</h4>
+                <div id="historyContainer"></div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadCustomer() {
+            const customer = document.getElementById('customer').value;
+            if (!customer) {
+                document.getElementById('customerInfo').style.display = 'none';
+                document.getElementById('followUpHistory').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/customers/${customer}/follow-up` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderCustomer(data) {
+            document.getElementById('info_name').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_contact').textContent = data.email || data.phone || '-';
+            document.getElementById('info_last_order').textContent = data.last_order_date || 'Never';
+            document.getElementById('info_outstanding').textContent = (data.outstanding || 0).toLocaleString('ko-KR', {minimumFractionDigits: 2});
+            document.getElementById('customerInfo').style.display = 'block';
+
+            // Render follow-up history
+            const history = data.follow_ups || [];
+            if (history.length > 0) {
+                const container = document.getElementById('historyContainer');
+                container.innerHTML = history.map(f => `
+                    <div class="history-item priority-${(f.priority || 'medium').toLowerCase()}">
+                        <div class="history-header">
+                            <span class="history-date">${f.date || '-'}</span>
+                            <span class="history-type">${f.contact_type || 'N/A'}</span>
+                        </div>
+                        <div><strong>${f.subject || 'No subject'}</strong></div>
+                        <div style="color: #666; margin-top: 5px;">${f.notes || 'No notes'}</div>
+                        ${f.next_action ? `<div style="margin-top: 5px;"><em>Next: ${f.next_action}</em></div>` : ''}
+                    </div>
+                `).join('');
+                document.getElementById('followUpHistory').style.display = 'block';
+            }
+        }
+
+        function getTaskInput() {
+            return {
+                customer: document.getElementById('customer').value,
+                follow_up_date: document.getElementById('follow_up_date').value,
+                contact_type: document.getElementById('contact_type').value,
+                priority: document.getElementById('priority').value,
+                subject: document.getElementById('subject').value,
+                notes: document.getElementById('notes').value || null,
+                next_action: document.getElementById('next_action').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.customer) { alert('Please select a customer'); return false; }
+            if (!data.follow_up_date) { alert('Please enter follow-up date'); return false; }
+            if (!data.contact_type) { alert('Please select contact type'); return false; }
+            if (!data.subject) { alert('Please enter a subject'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.customer_name || data.follow_ups !== undefined) {
+                renderCustomer(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('customer');
+                select.innerHTML = '<option value="">Select Customer</option>' +
+                    items.map(c => `<option value="${c.name}">${c.label || c.customer_name || c.name}</option>`).join('');
+            }
+        }
+
+        // Set default date to today
+        document.getElementById('follow_up_date').valueAsDate = new Date();
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

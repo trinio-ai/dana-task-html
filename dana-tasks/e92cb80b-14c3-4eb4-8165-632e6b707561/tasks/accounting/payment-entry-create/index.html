@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-box { background: #e7f3ff; border: 1px solid #007bff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="payment_type">Payment Type <span class="required">*</span></label>
+                <select id="payment_type" name="payment_type" required>
+                    <option value="">Select Type</option>
+                    <option value="Receive">Receive Payment</option>
+                    <option value="Pay">Make Payment</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="party_type">Party Type <span class="required">*</span></label>
+                <select id="party_type" name="party_type" required>
+                    <option value="">Select Party Type</option>
+                    <option value="Customer">Customer</option>
+                    <option value="Supplier">Supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field" id="customerField" style="display: none;">
+                <label for="customer">Customer <span class="required">*</span></label>
+                <select id="customer" name="customer" data-fetch-endpoint="/api/erp/customers">
+                    <option value="">Select Customer</option>
+                </select>
+            </div>
+
+            <div class="form-field" id="supplierField" style="display: none;">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <select id="supplier" name="supplier" data-fetch-endpoint="/api/erp/suppliers">
+                    <option value="">Select Supplier</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="posting_date">Payment Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <div class="section">
+                <h4>Payment Details</h4>
+                <div class="form-field">
+                    <label for="paid_amount">Amount <span class="required">*</span></label>
+                    <input type="number" id="paid_amount" name="paid_amount" min="0" step="0.01" required>
+                </div>
+
+                <div class="form-field" id="paidFromField">
+                    <label for="paid_from">Paid From Account <span class="required">*</span></label>
+                    <select id="paid_from" name="paid_from" data-fetch-endpoint="/api/erp/accounts?account_type=[&quot;Bank&quot;,&quot;Cash&quot;,&quot;Receivable&quot;]">
+                        <option value="">Select Account</option>
+                    </select>
+                </div>
+
+                <div class="form-field" id="paidToField">
+                    <label for="paid_to">Paid To Account <span class="required">*</span></label>
+                    <select id="paid_to" name="paid_to" data-fetch-endpoint="/api/erp/accounts?account_type=[&quot;Bank&quot;,&quot;Cash&quot;,&quot;Payable&quot;]">
+                        <option value="">Select Account</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section">
+                <h4>Reference (Optional)</h4>
+                <div class="form-field">
+                    <label for="reference_no">Reference Number</label>
+                    <input type="text" id="reference_no" name="reference_no" placeholder="e.g., Check number, Transaction ID">
+                </div>
+
+                <div class="form-field">
+                    <label for="reference_date">Reference Date</label>
+                    <input type="date" id="reference_date" name="reference_date">
+                </div>
+            </div>
+
+            <div class="info-box">
+                <strong>Note:</strong> After creating the payment, you can allocate it to invoices using the "Allocate Payment" task.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        document.getElementById('party_type').addEventListener('change', function() {
+            const isCustomer = this.value === 'Customer';
+            document.getElementById('customerField').style.display = isCustomer ? 'block' : 'none';
+            document.getElementById('supplierField').style.display = !isCustomer && this.value ? 'block' : 'none';
+        });
+
+        function getTaskInput() {
+            const partyType = document.getElementById('party_type').value;
+            return {
+                payment_type: document.getElementById('payment_type').value,
+                party_type: partyType,
+                party: partyType === 'Customer'
+                    ? document.getElementById('customer').value
+                    : document.getElementById('supplier').value,
+                posting_date: document.getElementById('posting_date').value,
+                paid_amount: parseFloat(document.getElementById('paid_amount').value) || 0,
+                paid_from: document.getElementById('paid_from').value,
+                paid_to: document.getElementById('paid_to').value,
+                reference_no: document.getElementById('reference_no').value,
+                reference_date: document.getElementById('reference_date').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.payment_type) { alert('Please select payment type'); return false; }
+            if (!data.party_type) { alert('Please select party type'); return false; }
+            if (!data.party) { alert('Please select a party'); return false; }
+            if (!data.posting_date) { alert('Please select payment date'); return false; }
+            if (!data.paid_amount || data.paid_amount <= 0) { alert('Please enter a valid amount'); return false; }
+            if (!data.paid_from) { alert('Please select paid from account'); return false; }
+            if (!data.paid_to) { alert('Please select paid to account'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options) {
+                // Populate dropdowns from defaults
+            }
+            if (data.defaults) {
+                if (data.defaults.posting_date) document.getElementById('posting_date').value = data.defaults.posting_date;
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

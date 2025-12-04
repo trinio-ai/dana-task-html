@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <!-- Header Fields -->
+            <div class="form-field">
+                <label for="supplier">공급처 <span class="required">*</span></label>
+                <select id="supplier" name="supplier" required>
+                    <option value="">선택하세요</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="posting_date">전기일 <span class="required">*</span></label>
+                    <input type="date" id="posting_date" name="posting_date" required>
+                </div>
+                <div class="form-field">
+                    <label for="due_date">지급 만기일 <span class="required">*</span></label>
+                    <input type="date" id="due_date" name="due_date" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="bill_no">공급처 송장 번호</label>
+                    <input type="text" id="bill_no" name="bill_no" placeholder="공급처 송장 번호">
+                </div>
+                <div class="form-field">
+                    <label for="currency">통화</label>
+                    <select id="currency" name="currency">
+                        <option value="KRW">KRW</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Items Child Table -->
+            <div class="form-section">
+                <div class="section-header">
+                    <label>품목 내역 <span class="required">*</span></label>
+                    <button type="button" class="btn-add-row" onclick="addItemRow()">+ 행 추가</button>
+                </div>
+
+                <table class="child-table" id="itemsTable" data-table-name="items">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%">품목 <span class="required">*</span></th>
+                            <th style="width: 15%">수량 <span class="required">*</span></th>
+                            <th style="width: 20%">단가 <span class="required">*</span></th>
+                            <th style="width: 20%">금액</th>
+                            <th style="width: 10%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        <!-- Rows added dynamically -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="totals-row">
+                            <td colspan="3" style="text-align: right; font-weight: bold;">합계</td>
+                            <td style="text-align: right; font-weight: bold;">
+                                <span id="grandTotal">0</span>
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Additional Options -->
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="update_stock" name="update_stock">
+                    재고 업데이트 (입고 동시 처리)
+                </label>
+            </div>
+
+            <!-- Hidden field for grand total -->
+            <input type="hidden" id="grand_total" name="grand_total" value="0">
+        </form>
+    </div>
+
+    <style>
+        .form-row {
+            display: flex;
+            gap: 1rem;
+        }
+        .form-row .form-field {
+            flex: 1;
+        }
+        .form-section {
+            margin-top: 1.5rem;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .section-header label {
+            font-weight: 600;
+        }
+        .btn-add-row {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            background: var(--primary-color, #3b82f6);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-add-row:hover {
+            background: var(--primary-hover, #2563eb);
+        }
+        .child-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .child-table th,
+        .child-table td {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color, #e5e7eb);
+            vertical-align: middle;
+        }
+        .child-table th {
+            background: var(--header-bg, #f9fafb);
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-align: left;
+        }
+        .child-table input,
+        .child-table select {
+            width: 100%;
+            padding: 0.375rem;
+            border: 1px solid var(--border-color, #e5e7eb);
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .child-table input[type="number"] {
+            text-align: right;
+        }
+        .child-table .amount-display {
+            text-align: right;
+            font-weight: 500;
+            padding: 0.375rem;
+            background: var(--header-bg, #f9fafb);
+            border-radius: 4px;
+        }
+        .btn-remove-row {
+            padding: 0.25rem 0.5rem;
+            background: var(--error-color, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .btn-remove-row:hover {
+            background: #b91c1c;
+        }
+        .totals-row td {
+            background: var(--header-bg, #f9fafb);
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+        }
+    </style>
+
+    <script>
+        // Store dropdown options from fetch data
+        let supplierOptions = [];
+        let itemOptions = [];
+        let currencyOptions = [];
+
+        // Guard against multiple setTaskInput calls with same data
+        let lastDataHash = null;
+
+        // Add a new row to the items table (optionally with pre-filled data)
+        function addItemRow(itemData = null) {
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+
+            // Build options HTML with selected attribute if itemData provided
+            const optionsHtml = itemOptions.map(opt => {
+                const isSelected = itemData && opt.value === itemData.item_code;
+                return `<option value="${opt.value}" data-name="${opt.label}"${isSelected ? ' selected' : ''}>${opt.label}</option>`;
+            }).join('');
+
+            const qty = itemData?.qty || 1;
+            const rate = itemData?.rate || 0;
+            const amount = qty * rate;
+
+            row.innerHTML = `
+                <td>
+                    <select name="item_code" class="item-select" required onchange="onItemSelect(this)">
+                        <option value=""${!itemData?.item_code ? ' selected' : ''}>선택</option>
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="qty" class="qty-input" value="${qty}" min="0.01" step="0.01" required oninput="calculateRowAmount(this.closest('tr'))">
+                </td>
+                <td>
+                    <input type="number" name="rate" class="rate-input" value="${rate}" min="0" step="1" required oninput="calculateRowAmount(this.closest('tr'))">
+                </td>
+                <td>
+                    <div class="amount-display">${amount.toLocaleString('ko-KR')}</div>
+                    <input type="hidden" name="amount" class="amount-input" value="${amount}">
+                </td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+            updateGrandTotal();
+        }
+
+        // Remove a row
+        function removeRow(button) {
+            const tbody = document.getElementById('itemsBody');
+            if (tbody.children.length > 1) {
+                button.closest('tr').remove();
+                updateGrandTotal();
+            } else {
+                alert('최소 한 개의 품목이 필요합니다.');
+            }
+        }
+
+        // Handle item selection
+        function onItemSelect(select) {
+            // Could auto-fill rate from item master here if needed
+            calculateRowAmount(select.closest('tr'));
+        }
+
+        // Calculate amount for a single row
+        function calculateRowAmount(row) {
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
+            const amount = qty * rate;
+
+            row.querySelector('.amount-display').textContent = amount.toLocaleString('ko-KR');
+            row.querySelector('.amount-input').value = amount;
+
+            updateGrandTotal();
+        }
+
+        // Update grand total
+        function updateGrandTotal() {
+            const rows = document.querySelectorAll('#itemsBody tr');
+            let total = 0;
+
+            rows.forEach(row => {
+                const amount = parseFloat(row.querySelector('.amount-input').value) || 0;
+                total += amount;
+            });
+
+            document.getElementById('grandTotal').textContent = total.toLocaleString('ko-KR');
+            document.getElementById('grand_total').value = total;
+        }
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = {};
+
+            // Get header fields
+            formData.supplier = document.getElementById('supplier').value;
+            formData.posting_date = document.getElementById('posting_date').value;
+            formData.due_date = document.getElementById('due_date').value;
+            formData.bill_no = document.getElementById('bill_no').value || null;
+            formData.currency = document.getElementById('currency').value;
+            formData.update_stock = document.getElementById('update_stock').checked;
+            formData.grand_total = parseFloat(document.getElementById('grand_total').value) || 0;
+
+            // Get table rows as items array
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemSelect = row.querySelector('[name="item_code"]');
+                const item_code = itemSelect.value;
+                const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+                const item_name = selectedOption ? selectedOption.dataset.name || selectedOption.text : null;
+                const qty = parseFloat(row.querySelector('[name="qty"]').value) || 0;
+                const rate = parseFloat(row.querySelector('[name="rate"]').value) || 0;
+                const amount = parseFloat(row.querySelector('[name="amount"]').value) || 0;
+
+                // Only include rows with an item selected
+                if (item_code) {
+                    items.push({
+                        item_code: item_code,
+                        item_name: item_name,
+                        qty: qty,
+                        rate: rate,
+                        amount: amount
+                    });
+                }
+            });
+
+            formData.items = items;
+            return formData;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+            const errors = [];
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required header fields
+            if (!document.getElementById('supplier').value) {
+                errors.push('공급처를 선택하세요.');
+                isValid = false;
+            }
+            if (!document.getElementById('posting_date').value) {
+                errors.push('전기일을 입력하세요.');
+                isValid = false;
+            }
+            if (!document.getElementById('due_date').value) {
+                errors.push('지급 만기일을 입력하세요.');
+                isValid = false;
+            }
+
+            // Validate items table
+            const rows = document.querySelectorAll('#itemsBody tr');
+            let hasValidItem = false;
+
+            rows.forEach((row, index) => {
+                const item_code = row.querySelector('[name="item_code"]').value;
+                const qty = parseFloat(row.querySelector('[name="qty"]').value) || 0;
+                const rate = parseFloat(row.querySelector('[name="rate"]').value) || 0;
+
+                if (item_code) {
+                    hasValidItem = true;
+                    if (qty <= 0) {
+                        errors.push(`${index + 1}행: 수량은 0보다 커야 합니다.`);
+                        isValid = false;
+                    }
+                    if (rate < 0) {
+                        errors.push(`${index + 1}행: 단가는 0 이상이어야 합니다.`);
+                        isValid = false;
+                    }
+                }
+            });
+
+            if (!hasValidItem) {
+                errors.push('최소 한 개의 품목을 입력하세요.');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                alert(errors.join('\n'));
+            }
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form from fetch data)
+        function setTaskInput(data) {
+            console.log('[setTaskInput] Called with data:', data);
+            if (!data) return;
+
+            // Guard against duplicate calls with same data
+            const dataHash = JSON.stringify({
+                supplier: data.supplier,
+                items: data.items,
+                posting_date: data.posting_date
+            });
+            if (dataHash === lastDataHash) {
+                console.log('[setTaskInput] Skipping duplicate call');
+                return;
+            }
+            lastDataHash = dataHash;
+
+            // Handle nested data structure from ERP-Core
+            // Format: { data: { options: {...}, defaults: {...} } }
+            const options = data.data?.options || data.options || {};
+            const defaults = data.data?.defaults || data.defaults || {};
+            console.log('[setTaskInput] Parsed options:', Object.keys(options));
+
+            // Step 1: Populate dropdown options FIRST (before creating any rows)
+            if (options.supplier && options.supplier.length > 0) {
+                supplierOptions = options.supplier;
+                const supplierSelect = document.getElementById('supplier');
+                supplierSelect.innerHTML = '<option value="">선택하세요</option>' +
+                    supplierOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+            }
+
+            if (options.item_code && options.item_code.length > 0) {
+                itemOptions = options.item_code;
+                console.log('[setTaskInput] itemOptions loaded:', itemOptions.length, 'items');
+            }
+
+            if (options.currency && options.currency.length > 0) {
+                currencyOptions = options.currency;
+                const currencySelect = document.getElementById('currency');
+                currencySelect.innerHTML = currencyOptions.map(opt =>
+                    `<option value="${opt.value}">${opt.label}</option>`
+                ).join('');
+            }
+
+            // Step 2: Set default values for header fields
+            if (defaults.posting_date) {
+                document.getElementById('posting_date').value = defaults.posting_date;
+            }
+            if (defaults.due_date) {
+                document.getElementById('due_date').value = defaults.due_date;
+            }
+            if (defaults.currency) {
+                document.getElementById('currency').value = defaults.currency;
+            }
+            if (defaults.update_stock !== undefined) {
+                document.getElementById('update_stock').checked = defaults.update_stock;
+            }
+
+            // Step 3: Handle direct field values (for edit/restore mode)
+            if (data.supplier) {
+                document.getElementById('supplier').value = data.supplier;
+            }
+            if (data.posting_date) {
+                document.getElementById('posting_date').value = data.posting_date;
+            }
+            if (data.due_date) {
+                document.getElementById('due_date').value = data.due_date;
+            }
+            if (data.bill_no) {
+                document.getElementById('bill_no').value = data.bill_no;
+            }
+            if (data.currency) {
+                document.getElementById('currency').value = data.currency;
+            }
+
+            // Step 4: Handle items table - MUST happen AFTER itemOptions is loaded
+            const tbody = document.getElementById('itemsBody');
+
+            if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+                // Clear existing rows and create from saved data with values pre-filled
+                console.log('[setTaskInput] Processing saved items:', data.items.length);
+                tbody.innerHTML = '';
+
+                // Create rows with data already embedded in HTML (no post-creation value setting)
+                data.items.forEach((item, idx) => {
+                    console.log(`[setTaskInput] Creating row ${idx} with item_code: "${item.item_code}"`);
+                    addItemRow(item);  // Pass item data to create row with selected option
+                });
+            } else {
+                // No saved items - ensure at least one empty row exists
+                if (tbody.children.length === 0) {
+                    addItemRow();
+                } else {
+                    // Update existing rows with loaded options
+                    updateItemDropdowns();
+                }
+            }
+        }
+
+        // Update item dropdowns in existing rows
+        function updateItemDropdowns() {
+            const selects = document.querySelectorAll('.item-select');
+            console.log('[updateItemDropdowns] Found', selects.length, 'item-select elements');
+            console.log('[updateItemDropdowns] itemOptions count:', itemOptions.length);
+            selects.forEach((select, idx) => {
+                const currentValue = select.value;
+                select.innerHTML = `<option value="">선택</option>${itemOptions.map(opt =>
+                    `<option value="${opt.value}" data-name="${opt.label}"${opt.value === currentValue ? ' selected' : ''}>${opt.label}</option>`
+                ).join('')}`;
+                console.log('[updateItemDropdowns] Updated select', idx, 'with', select.options.length, 'options');
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = '';
+            addItemRow();
+            updateGrandTotal();
+        }
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'purchase-invoice-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

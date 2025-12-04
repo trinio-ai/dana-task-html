@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="work_order">Work Order <span class="required">*</span></label>
+  <select id="work_order" name="work_order" required data-fetch-endpoint="/api/v1/erp/manufacturing/work-orders">
+    <option value="">Select work order</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="operation">Operation <span class="required">*</span></label>
+  <select id="operation" name="operation" required data-fetch-endpoint="/api/v1/erp/manufacturing/operations" data-fetch-filter='{"work_order": "work_order"}'>
+    <option value="">Select operation</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="workstation">Workstation <span class="required">*</span></label>
+  <select id="workstation" name="workstation" required data-fetch-endpoint="/api/v1/erp/manufacturing/workstations">
+    <option value="">Select workstation</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="for_quantity">Quantity <span class="required">*</span></label>
+  <input type="number" id="for_quantity" name="for_quantity" required min="0" step="0.01">
+</div>
+<div class="form-field">
+  <label for="employee">Employee</label>
+  <select id="employee" name="employee" data-fetch-endpoint="/api/v1/erp/employees">
+    <option value="">Select employee</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="posting_date">Posting Date <span class="required">*</span></label>
+  <input type="date" id="posting_date" name="posting_date" required>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'job-card-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted successfully!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = 'This field is required';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .required { color: red; }
+        .quotation-details { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .detail-label { color: #666; }
+        .detail-value { font-weight: bold; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="quotation">Select Quotation <span class="required">*</span></label>
+                <select id="quotation" name="quotation" required onchange="loadQuotationDetails()"
+                        data-fetch-endpoint="/api/erp/selling/quotations?docstatus=0">
+                    <option value="">Select Quotation</option>
+                </select>
+            </div>
+
+            <div class="quotation-details" id="quotationDetails" style="display: none;">
+                <h4>Quotation Details</h4>
+                <div class="detail-row">
+                    <span class="detail-label">Customer:</span>
+                    <span class="detail-value" id="detail_customer">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Date:</span>
+                    <span class="detail-value" id="detail_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Valid Until:</span>
+                    <span class="detail-value" id="detail_valid_till">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Grand Total:</span>
+                    <span class="detail-value" id="detail_grand_total">-</span>
+                </div>
+
+                <h4 style="margin-top: 15px;">Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadQuotationDetails() {
+            const quotation = document.getElementById('quotation').value;
+            if (!quotation) {
+                document.getElementById('quotationDetails').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/quotations/${quotation}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderDetails(data) {
+            document.getElementById('detail_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('detail_date').textContent = data.transaction_date || '-';
+            document.getElementById('detail_valid_till').textContent = data.valid_till || 'Not specified';
+            document.getElementById('detail_grand_total').textContent = data.grand_total?.toFixed(2) || '0.00';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty}</td>
+                    <td>${item.rate?.toFixed(2) || '0.00'}</td>
+                    <td>${item.amount?.toFixed(2) || '0.00'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('quotationDetails').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { quotation: document.getElementById('quotation').value };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('quotation').value) {
+                alert('Please select a quotation');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.quotation || data.name) {
+                renderDetails(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('quotation');
+                select.innerHTML = '<option value="">Select Quotation</option>' +
+                    items.map(q => `<option value="${q.name}">${q.label || q.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"price_list_name": {"type": "string"}, "currency": {"type": "string", "enum": ["KRW", "USD"]}, "buying_selling": {"type": "string", "enum": ["판매용", "구매용"]}}, "required": ["price_list_name", "currency", "buying_selling"]}

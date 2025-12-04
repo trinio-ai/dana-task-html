@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <div class="field-header">
+                    <label for="customer">Customer <span class="required">*</span></label>
+                    <button type="button" class="link-button" onclick="openDependencyTask('customer-create')">+ New Customer</button>
+                </div>
+                <select id="customer" name="customer" required data-dependency-task="customer-create" data-dependency-label="+ New Customer">
+                    <option value="">Select customer</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="territory">Territory <span class="required">*</span></label>
+                <select id="territory" name="territory" required>
+                    <option value="">Select territory</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="sales_person">Sales Person</label>
+                <select id="sales_person" name="sales_person">
+                    <option value="">Select sales person</option>
+                </select>
+                <small>Primary sales person responsible for this customer</small>
+            </div>
+
+            <div class="form-field">
+                <label for="sales_partner">Sales Partner</label>
+                <select id="sales_partner" name="sales_partner">
+                    <option value="">Select partner (if applicable)</option>
+                </select>
+                <small>External sales partner or reseller</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('customer').value) {
+                errors.push('Customer is required');
+            }
+            if (!document.getElementById('territory').value) {
+                errors.push('Territory is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) input.value = data[key];
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

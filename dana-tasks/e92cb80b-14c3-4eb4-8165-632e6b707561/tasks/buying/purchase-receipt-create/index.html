@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input, .items-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .add-row-btn { background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .remove-row-btn { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="supplier">Supplier <span class="required">*</span></label>
+                    <select id="supplier" name="supplier" required
+                            data-fetch-endpoint="/api/erp/buying/suppliers?disabled=0">
+                        <option value="">Select Supplier</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="posting_date">Receipt Date</label>
+                    <input type="date" id="posting_date" name="posting_date">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <h4>Items <span class="required">*</span></h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Warehouse</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+                <button type="button" class="add-row-btn" onclick="addItemRow()">+ Add Item</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let itemOptions = [];
+        let warehouseOptions = [];
+        let rowCount = 0;
+
+        function addItemRow(data = {}) {
+            rowCount++;
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            row.id = `item-row-${rowCount}`;
+            row.innerHTML = `
+                <td>
+                    <select name="item_code_${rowCount}" required>
+                        <option value="">Select Item</option>
+                        ${itemOptions.map(i => `<option value="${i.value}" ${i.value === data.item_code ? 'selected' : ''}>${i.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><input type="number" name="qty_${rowCount}" value="${data.qty || 1}" min="0.001" step="0.001" required></td>
+                <td><input type="number" name="rate_${rowCount}" value="${data.rate || 0}" min="0" step="0.01"></td>
+                <td>
+                    <select name="warehouse_${rowCount}" required>
+                        <option value="">Select Warehouse</option>
+                        ${warehouseOptions.map(w => `<option value="${w.value}" ${w.value === data.warehouse ? 'selected' : ''}>${w.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><button type="button" class="remove-row-btn" onclick="removeRow(${rowCount})">X</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function removeRow(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (row) row.remove();
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemSelect = row.querySelector('select[name^="item_code_"]');
+                const qtyInput = row.querySelector('input[name^="qty_"]');
+                const rateInput = row.querySelector('input[name^="rate_"]');
+                const warehouseSelect = row.querySelector('select[name^="warehouse_"]');
+                if (itemSelect && itemSelect.value) {
+                    items.push({
+                        item_code: itemSelect.value,
+                        qty: parseFloat(qtyInput.value) || 1,
+                        rate: parseFloat(rateInput.value) || 0,
+                        warehouse: warehouseSelect ? warehouseSelect.value : null
+                    });
+                }
+            });
+
+            return {
+                supplier: document.getElementById('supplier').value,
+                posting_date: document.getElementById('posting_date').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.supplier) { alert('Please select a supplier'); return false; }
+            if (data.items.length === 0) { alert('Please add at least one item'); return false; }
+            for (const item of data.items) {
+                if (!item.warehouse) { alert('Please select a warehouse for all items'); return false; }
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options) {
+                if (data.options.item) itemOptions = data.options.item;
+                if (data.options.warehouse) warehouseOptions = data.options.warehouse;
+            }
+            if (document.querySelectorAll('#itemsBody tr').length === 0) {
+                addItemRow();
+            }
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('posting_date').value = today;
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

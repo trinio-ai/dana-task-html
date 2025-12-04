@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"plan_id": {"type": "string"}, "new_from_date": {"type": "string"}, "new_to_date": {"type": "string"}, "reschedule_work_orders": {"type": "boolean"}, "confirm": {"type": "boolean"}}, "required": ["plan_id", "new_from_date", "new_to_date", "confirm"]}

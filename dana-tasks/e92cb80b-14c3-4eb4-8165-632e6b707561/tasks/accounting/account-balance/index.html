@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .balance-card { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .balance-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6; }
+        .balance-row:last-child { border-bottom: none; font-weight: bold; }
+        .balance-label { color: #6c757d; }
+        .balance-value { font-size: 1.1em; }
+        .debit { color: #dc3545; }
+        .credit { color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="account">Account <span class="required">*</span></label>
+                <select id="account" name="account" required data-fetch-endpoint="/api/erp/accounts">
+                    <option value="">Select Account</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="from_date">From Date</label>
+                <input type="date" id="from_date" name="from_date">
+            </div>
+            <div class="form-field">
+                <label for="to_date">To Date</label>
+                <input type="date" id="to_date" name="to_date">
+            </div>
+        </form>
+
+        <div id="balanceResults" class="balance-card" style="display: none;">
+            <div class="balance-row">
+                <span class="balance-label">Opening Balance</span>
+                <span class="balance-value" id="openingBalance">0.00</span>
+            </div>
+            <div class="balance-row">
+                <span class="balance-label">Total Debit</span>
+                <span class="balance-value debit" id="totalDebit">0.00</span>
+            </div>
+            <div class="balance-row">
+                <span class="balance-label">Total Credit</span>
+                <span class="balance-value credit" id="totalCredit">0.00</span>
+            </div>
+            <div class="balance-row">
+                <span class="balance-label">Closing Balance</span>
+                <span class="balance-value" id="closingBalance">0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            return {
+                account: document.getElementById('account').value,
+                from_date: document.getElementById('from_date').value,
+                to_date: document.getElementById('to_date').value
+            };
+        }
+
+        function validateForm() {
+            const account = document.getElementById('account').value;
+            if (!account) {
+                document.getElementById('account').closest('.form-field').classList.add('error');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.account) document.getElementById('account').value = data.account;
+            if (data.from_date) document.getElementById('from_date').value = data.from_date;
+            if (data.to_date) document.getElementById('to_date').value = data.to_date;
+
+            // Display balance results if provided
+            if (data.opening_balance !== undefined) {
+                document.getElementById('openingBalance').textContent = data.opening_balance.toFixed(2);
+                document.getElementById('totalDebit').textContent = data.total_debit.toFixed(2);
+                document.getElementById('totalCredit').textContent = data.total_credit.toFixed(2);
+                document.getElementById('closingBalance').textContent = data.closing_balance.toFixed(2);
+                document.getElementById('balanceResults').style.display = 'block';
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

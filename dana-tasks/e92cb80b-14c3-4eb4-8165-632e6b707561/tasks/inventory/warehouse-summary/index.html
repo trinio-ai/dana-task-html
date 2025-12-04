@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1f2937; background: #f9fafb; }
+        .page-container { padding: 16px; max-width: 1200px; margin: 0 auto; }
+        .form-section { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .section-title { font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+        .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 200px; margin-bottom: 12px; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 4px; color: #374151; }
+        .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; }
+        .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+        /* Summary cards */
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .summary-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; text-align: center; }
+        .summary-card .value { font-size: 24px; font-weight: 700; color: #3b82f6; }
+        .summary-card .label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+
+        /* Warehouse grid */
+        .warehouse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .warehouse-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+        .warehouse-card .warehouse-name { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+        .warehouse-card .stat-row { display: flex; justify-content: space-between; padding: 6px 0; }
+        .warehouse-card .stat-label { color: #6b7280; font-size: 13px; }
+        .warehouse-card .stat-value { font-weight: 600; color: #111827; }
+        .warehouse-card .stat-value.highlight { color: #3b82f6; font-size: 15px; }
+        .warehouse-card .stat-value.warning { color: #dc2626; }
+
+        /* Loading state */
+        .loading-message { text-align: center; padding: 40px; color: #6b7280; }
+
+        @media (max-width: 768px) {
+            .summary-cards { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <form id="taskForm">
+            <div class="form-section">
+                <h2 class="section-title">Filters</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="warehouse">Warehouse</label>
+                        <select id="warehouse" name="warehouse">
+                            <option value="">All Warehouses</option>
+                        </select>
+                        <small class="form-text">Select a specific warehouse or leave empty for all</small>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- Report Results Section -->
+        <div id="reportSection" style="display: none;">
+            <div class="form-section">
+                <h2 class="section-title">Summary</h2>
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="value" id="totalWarehouses">0</div>
+                        <div class="label">Warehouses</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="value" id="totalItems">0</div>
+                        <div class="label">Total Items</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="value" id="totalQty">0</div>
+                        <div class="label">Total Quantity</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="value" id="totalValue">0</div>
+                        <div class="label">Total Value</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2 class="section-title">Warehouse Details</h2>
+                <div class="warehouse-grid" id="warehouseGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Gets the current form input data
+         */
+        function getTaskInput() {
+            const form = document.getElementById('taskForm');
+            const formData = {};
+            const inputs = form.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.name) {
+                    formData[input.name] = input.value;
+                }
+            });
+            return formData;
+        }
+
+        /**
+         * Validates the current form data
+         */
+        function validateTaskInput() {
+            return { valid: true, errors: [] };
+        }
+
+        /**
+         * Pre-populates the form with data or displays report results
+         */
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // If data contains warehouses array, it's report results
+            if (data.warehouses) {
+                renderReport(data);
+            } else if (data.data && data.data.warehouses) {
+                renderReport(data.data);
+            } else if (data.options) {
+                populateDropdowns(data);
+            }
+        }
+
+        /**
+         * Populates dropdowns from TASK_DATA
+         */
+        function populateDropdowns(taskData) {
+            const warehouseSelect = document.getElementById('warehouse');
+            if (!warehouseSelect) return;
+
+            // Get warehouses from taskData
+            const warehouses = taskData?.options?.warehouse || [];
+
+            // Clear existing options except the first "All" option
+            while (warehouseSelect.options.length > 1) {
+                warehouseSelect.remove(1);
+            }
+
+            warehouses.forEach(wh => {
+                const option = document.createElement('option');
+                option.value = wh.value;
+                option.textContent = wh.label;
+                warehouseSelect.appendChild(option);
+            });
+        }
+
+        /**
+         * Renders the warehouse summary report
+         */
+        function renderReport(data) {
+            const warehouses = data.warehouses || [];
+            const grid = document.getElementById('warehouseGrid');
+            grid.innerHTML = '';
+
+            let totalItems = 0, totalQty = 0, totalValue = 0;
+
+            warehouses.forEach(wh => {
+                totalItems += wh.item_count || 0;
+                totalQty += wh.total_qty || 0;
+                totalValue += wh.total_value || 0;
+
+                const card = document.createElement('div');
+                card.className = 'warehouse-card';
+                card.innerHTML = `
+                    <div class="warehouse-name">${wh.warehouse_name || wh.warehouse}</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Unique Items</span>
+                        <span class="stat-value">${(wh.item_count || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Total Quantity</span>
+                        <span class="stat-value">${(wh.total_qty || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Stock Value</span>
+                        <span class="stat-value highlight">${formatCurrency(wh.total_value || 0)}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Low Stock Items</span>
+                        <span class="stat-value ${wh.low_stock_count > 0 ? 'warning' : ''}">${wh.low_stock_count || 0}</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Update summary cards
+            document.getElementById('totalWarehouses').textContent = warehouses.length.toLocaleString();
+            document.getElementById('totalItems').textContent = totalItems.toLocaleString();
+            document.getElementById('totalQty').textContent = totalQty.toLocaleString();
+            document.getElementById('totalValue').textContent = formatCurrency(totalValue);
+
+            // Show the report section
+            document.getElementById('reportSection').style.display = 'block';
+        }
+
+        /**
+         * Formats a number as currency (KRW)
+         */
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('ko-KR', {
+                style: 'currency',
+                currency: 'KRW',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+            }).format(value);
+        }
+
+        /**
+         * Initialize on page load
+         */
+        window.addEventListener('DOMContentLoaded', () => {
+            // Populate dropdowns from TASK_DATA if available
+            const taskData = window.TASK_DATA || {};
+            if (taskData.options) {
+                populateDropdowns(taskData);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

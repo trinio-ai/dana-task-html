@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="company">Company <span class="required">*</span></label>
+                <select id="company" name="company" required data-dependency-task="company-create" data-dependency-label="+ New Company">
+                    <option value="">Select company</option>
+                </select>
+            </div>
+
+            <fieldset>
+                <legend>Company Logo</legend>
+
+                <div class="form-field">
+                    <label for="logo_file">Upload Logo</label>
+                    <input type="file" id="logo_file" name="logo_file" accept=".png,.jpg,.jpeg,.svg">
+                    <small>Supported formats: PNG, JPG, SVG. Recommended size: 300x100 pixels minimum.</small>
+                </div>
+
+                <div class="form-field">
+                    <label for="logo_position">Logo Position on Documents</label>
+                    <select id="logo_position" name="logo_position">
+                        <option value="left">Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="logo_size">Logo Size</label>
+                    <select id="logo_size" name="logo_size">
+                        <option value="small">Small (100px width)</option>
+                        <option value="medium" selected>Medium (150px width)</option>
+                        <option value="large">Large (200px width)</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Letterhead Settings</legend>
+
+                <div class="form-field">
+                    <label for="header_text">Header Text</label>
+                    <textarea id="header_text" name="header_text" rows="2" placeholder="Text to appear in document header"></textarea>
+                </div>
+
+                <div class="form-field">
+                    <label for="footer_text">Footer Text</label>
+                    <textarea id="footer_text" name="footer_text" rows="2" placeholder="Text to appear in document footer (e.g., bank details, terms)"></textarea>
+                </div>
+
+                <div class="form-field">
+                    <label for="show_address">
+                        <input type="checkbox" id="show_address" name="show_address" checked>
+                        <span>Show company address on letterhead</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label for="show_contact">
+                        <input type="checkbox" id="show_contact" name="show_contact" checked>
+                        <span>Show contact information (phone, email, website)</span>
+                    </label>
+                </div>
+
+                <div class="form-field">
+                    <label for="show_tax_id">
+                        <input type="checkbox" id="show_tax_id" name="show_tax_id" checked>
+                        <span>Show tax ID / registration number</span>
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Document Settings</legend>
+
+                <div class="form-field">
+                    <label for="primary_color">Primary Color</label>
+                    <input type="color" id="primary_color" name="primary_color" value="#1a73e8">
+                    <small>Used for headings and accents on documents</small>
+                </div>
+
+                <div class="form-field">
+                    <label for="secondary_color">Secondary Color</label>
+                    <input type="color" id="secondary_color" name="secondary_color" value="#5f6368">
+                    <small>Used for secondary text and borders</small>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'logo_file') {
+                    data[key] = value;
+                }
+            }
+
+            // Handle checkboxes
+            data.show_address = document.getElementById('show_address').checked;
+            data.show_contact = document.getElementById('show_contact').checked;
+            data.show_tax_id = document.getElementById('show_tax_id').checked;
+
+            // Handle file upload separately
+            const logoFile = document.getElementById('logo_file').files[0];
+            if (logoFile) {
+                data.logo_file_name = logoFile.name;
+                data.logo_file_size = logoFile.size;
+                data.logo_file_type = logoFile.type;
+            }
+
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+
+            const logoFile = document.getElementById('logo_file').files[0];
+            if (logoFile) {
+                const validTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
+                if (!validTypes.includes(logoFile.type)) {
+                    errors.push('Logo must be PNG, JPG, or SVG format');
+                }
+
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                if (logoFile.size > maxSize) {
+                    errors.push('Logo file size must be less than 5MB');
+                }
+            }
+
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            const options = data.options || data.data?.options || {};
+            if (options.company) {
+                const select = document.getElementById('company');
+                select.innerHTML = '<option value="">Select company</option>' + options.company.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+            }
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else if (input.type !== 'file') {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="item">Item <span class="required">*</span></label>
+                <select id="item" name="item" required data-dependency-task="item-create" data-dependency-label="+ New Item">
+                    <option value="">Select item</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="price_list">Price List <span class="required">*</span></label>
+                <select id="price_list" name="price_list" required data-dependency-task="price-list-create" data-dependency-label="+ New Price List">
+                    <option value="">Select price list</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="rate">Price <span class="required">*</span></label>
+                <input type="number" id="rate" name="rate" min="0" step="0.01" required placeholder="0.00">
+            </div>
+
+            <div class="form-field">
+                <label for="currency">Currency</label>
+                <select id="currency" name="currency">
+                    <option value="">Select currency</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="uom">UOM</label>
+                <select id="uom" name="uom">
+                    <option value="">Default UOM</option>
+                </select>
+                <small>Leave blank to use item's default UOM</small>
+            </div>
+
+            <div class="form-field">
+                <label for="min_qty">Minimum Quantity</label>
+                <input type="number" id="min_qty" name="min_qty" min="0" step="0.01" placeholder="1">
+                <small>Price applies when quantity >= this value</small>
+            </div>
+
+            <div class="form-field">
+                <label for="valid_from">Valid From</label>
+                <input type="date" id="valid_from" name="valid_from">
+            </div>
+
+            <div class="form-field">
+                <label for="valid_upto">Valid Until</label>
+                <input type="date" id="valid_upto" name="valid_upto">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'rate' || key === 'min_qty') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else {
+                    data[key] = value;
+                }
+            }
+            return data;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            if (!document.getElementById('item').value) {
+                errors.push('Item is required');
+            }
+            if (!document.getElementById('price_list').value) {
+                errors.push('Price list is required');
+            }
+            if (!document.getElementById('rate').value) {
+                errors.push('Price is required');
+            }
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    input.value = data[key];
+                }
+            });
+        }
+
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

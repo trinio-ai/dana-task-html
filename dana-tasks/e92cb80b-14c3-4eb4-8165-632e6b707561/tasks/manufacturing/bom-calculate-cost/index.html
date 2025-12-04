@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="bom_id">BOM ID <span class="required">*</span></label>
+                <select id="bom_id" name="bom_id" required data-fetch-endpoint="/api/v1/erp/manufacturing/boms">
+                    <option value="">Select BOM</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="based_on">Cost Calculation Based On <span class="required">*</span></label>
+                <select id="based_on" name="based_on" required>
+                    <option value="">Select Basis</option>
+                    <option value="Valuation Rate">Valuation Rate</option>
+                    <option value="Last Purchase Rate">Last Purchase Rate</option>
+                    <option value="Price List">Price List</option>
+                </select>
+                <small class="help-text">Select the basis for cost calculation</small>
+            </div>
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="update_rate" name="update_rate">
+                    Update Item Rate
+                </label>
+                <small class="help-text">Check to update the item's rate with calculated cost</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Get task input data (required by DANA Task interface)
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            return data;
+        }
+
+        // Set task input (pre-populate form) - required by DANA Task interface
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Validate form
+        function validateTaskInput() {
+            let isValid = true;
+
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Expose functions for DANA Task interface
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

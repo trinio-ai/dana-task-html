@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .file-upload { border: 2px dashed #ddd; padding: 20px; text-align: center; margin: 10px 0; border-radius: 8px; cursor: pointer; }
+        .file-upload:hover { border-color: #007bff; background-color: #f8f9fa; }
+        .file-upload.has-file { border-color: #28a745; background-color: #e8f5e9; }
+        .file-info { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .preview-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        .preview-table th, .preview-table td { padding: 6px; text-align: left; border: 1px solid #ddd; }
+        .preview-table th { background-color: #f5f5f5; }
+        .mapping-row { display: flex; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 4px; }
+        .mapping-row label { flex: 1; }
+        .mapping-row select { flex: 1; padding: 6px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="import_type">Import Type <span class="required">*</span></label>
+                <select id="import_type" name="import_type" required onchange="updateFieldMapping()">
+                    <option value="">Select data type to import</option>
+                    <option value="Customer">Customer</option>
+                    <option value="Supplier">Supplier</option>
+                    <option value="Item">Item</option>
+                    <option value="Warehouse">Warehouse</option>
+                    <option value="UOM">Unit of Measure</option>
+                    <option value="Price List">Price List</option>
+                    <option value="Territory">Territory</option>
+                    <option value="Brand">Brand</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label>Upload File <span class="required">*</span></label>
+                <div class="file-upload" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+                    <p>Click or drag file here to upload</p>
+                    <small>Supported formats: CSV, Excel (.xlsx, .xls)</small>
+                </div>
+                <div id="fileInfo" class="file-info hidden"></div>
+            </div>
+
+            <div class="form-field hidden" id="mappingSection">
+                <label>Column Mapping</label>
+                <small class="help-text">Map your file columns to system fields</small>
+                <div id="columnMapping"></div>
+            </div>
+
+            <div class="form-field hidden" id="previewSection">
+                <label>Data Preview (First 5 rows)</label>
+                <div style="overflow-x: auto;">
+                    <table class="preview-table" id="previewTable">
+                        <thead id="previewHead"></thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="skip_errors" name="skip_errors">
+                    Skip rows with errors
+                </label>
+                <small class="help-text">If checked, valid rows will be imported even if some rows have errors</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let fileContent = null;
+        let fileName = null;
+        let fileColumns = [];
+        let fileData = [];
+
+        const fieldMappings = {
+            Customer: ['customer_name', 'customer_group', 'territory', 'email', 'phone', 'address', 'tax_id'],
+            Supplier: ['supplier_name', 'supplier_group', 'email', 'phone', 'address', 'tax_id'],
+            Item: ['item_code', 'item_name', 'item_group', 'stock_uom', 'description', 'is_stock_item'],
+            Warehouse: ['warehouse_name', 'parent_warehouse', 'company'],
+            UOM: ['uom_name', 'symbol'],
+            'Price List': ['price_list_name', 'currency', 'buying', 'selling'],
+            Territory: ['territory_name', 'parent_territory'],
+            Brand: ['brand_name', 'description']
+        };
+
+        // Drag and drop handling
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#007bff';
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = '#ddd';
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ddd';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        function processFile(file) {
+            fileName = file.name;
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                fileContent = e.target.result.split(',')[1]; // Base64 part
+
+                // Parse CSV for preview (simplified - real implementation would handle Excel too)
+                if (file.name.endsWith('.csv')) {
+                    const text = atob(fileContent);
+                    const lines = text.split('\n').filter(l => l.trim());
+                    if (lines.length > 0) {
+                        fileColumns = lines[0].split(',').map(c => c.trim().replace(/"/g, ''));
+                        fileData = lines.slice(1, 6).map(line =>
+                            line.split(',').map(c => c.trim().replace(/"/g, ''))
+                        );
+                    }
+                } else {
+                    // For Excel, we'd need a library - show placeholder
+                    fileColumns = ['Column 1', 'Column 2', 'Column 3'];
+                    fileData = [['Data preview not available for Excel files']];
+                }
+
+                updateFileInfo();
+                updateFieldMapping();
+                updatePreview();
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        function updateFileInfo() {
+            const fileInfo = document.getElementById('fileInfo');
+            const dropZone = document.getElementById('dropZone');
+
+            if (fileName) {
+                fileInfo.innerHTML = `<strong>File:</strong> ${fileName} <button type="button" onclick="clearFile()" style="margin-left:10px">Remove</button>`;
+                fileInfo.classList.remove('hidden');
+                dropZone.classList.add('has-file');
+            } else {
+                fileInfo.classList.add('hidden');
+                dropZone.classList.remove('has-file');
+            }
+        }
+
+        function clearFile() {
+            fileContent = null;
+            fileName = null;
+            fileColumns = [];
+            fileData = [];
+            document.getElementById('fileInput').value = '';
+            updateFileInfo();
+            document.getElementById('mappingSection').classList.add('hidden');
+            document.getElementById('previewSection').classList.add('hidden');
+        }
+
+        function updateFieldMapping() {
+            const importType = document.getElementById('import_type').value;
+            const mappingSection = document.getElementById('mappingSection');
+            const mappingDiv = document.getElementById('columnMapping');
+
+            if (!importType || fileColumns.length === 0) {
+                mappingSection.classList.add('hidden');
+                return;
+            }
+
+            const systemFields = fieldMappings[importType] || [];
+            mappingDiv.innerHTML = '';
+
+            systemFields.forEach(field => {
+                const row = document.createElement('div');
+                row.className = 'mapping-row';
+                row.innerHTML = `
+                    <label>${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
+                    <select data-field="${field}">
+                        <option value="">-- Do not import --</option>
+                        ${fileColumns.map(col => `<option value="${col}">${col}</option>`).join('')}
+                    </select>
+                `;
+                mappingDiv.appendChild(row);
+            });
+
+            // Auto-map matching columns
+            mappingDiv.querySelectorAll('select').forEach(select => {
+                const field = select.dataset.field.toLowerCase();
+                fileColumns.forEach(col => {
+                    if (col.toLowerCase().includes(field) || field.includes(col.toLowerCase())) {
+                        select.value = col;
+                    }
+                });
+            });
+
+            mappingSection.classList.remove('hidden');
+        }
+
+        function updatePreview() {
+            const previewSection = document.getElementById('previewSection');
+            const previewHead = document.getElementById('previewHead');
+            const previewBody = document.getElementById('previewBody');
+
+            if (fileColumns.length === 0) {
+                previewSection.classList.add('hidden');
+                return;
+            }
+
+            previewHead.innerHTML = '<tr>' + fileColumns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+            previewBody.innerHTML = fileData.map(row =>
+                '<tr>' + row.map(cell => `<td>${cell}</td>`).join('') + '</tr>'
+            ).join('');
+
+            previewSection.classList.remove('hidden');
+        }
+
+        // Get task input data
+        function getTaskInput() {
+            const columnMapping = {};
+            document.querySelectorAll('#columnMapping select').forEach(select => {
+                if (select.value) {
+                    columnMapping[select.dataset.field] = select.value;
+                }
+            });
+
+            return {
+                import_type: document.getElementById('import_type').value,
+                file_content: fileContent,
+                file_name: fileName,
+                column_mapping: columnMapping,
+                skip_errors: document.getElementById('skip_errors').checked
+            };
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+                const errorMsg = field.querySelector('.error-message');
+                if (errorMsg) errorMsg.remove();
+            });
+
+            // Validate import type
+            if (!document.getElementById('import_type').value) {
+                const field = document.getElementById('import_type').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Please select import type';
+                field.appendChild(errorMsg);
+                isValid = false;
+            }
+
+            // Validate file
+            if (!fileContent) {
+                const field = document.getElementById('dropZone').closest('.form-field');
+                field.classList.add('error');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Please upload a file';
+                field.appendChild(errorMsg);
+                isValid = false;
+            }
+
+            // Validate at least one mapping
+            const mappedFields = document.querySelectorAll('#columnMapping select');
+            let hasMappings = false;
+            mappedFields.forEach(select => {
+                if (select.value) hasMappings = true;
+            });
+
+            if (mappedFields.length > 0 && !hasMappings) {
+                const field = document.getElementById('mappingSection');
+                field.classList.add('error');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'Please map at least one column';
+                field.appendChild(errorMsg);
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            if (data.import_type) {
+                document.getElementById('import_type').value = data.import_type;
+            }
+            if (data.skip_errors !== undefined) {
+                document.getElementById('skip_errors').checked = data.skip_errors;
+            }
+        }
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'master-data-import',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted!');
+            }
+        });
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

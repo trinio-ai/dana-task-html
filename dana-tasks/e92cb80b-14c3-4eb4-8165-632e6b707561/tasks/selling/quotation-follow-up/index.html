@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .quotation-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .follow-up-history { margin-top: 20px; }
+        .history-item { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        .history-date { font-weight: bold; color: #007bff; }
+        .history-type { background: #e9ecef; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="quotation">Select Quotation <span class="required">*</span></label>
+                <select id="quotation" name="quotation" required onchange="loadQuotation()"
+                        data-fetch-endpoint="/api/erp/selling/quotations?status=Open">
+                    <option value="">Select Quotation</option>
+                </select>
+            </div>
+
+            <div class="quotation-info" id="quotationInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Amount:</span>
+                    <span id="info_amount">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Days Since Created:</span>
+                    <span id="info_age">-</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="follow_up_date">Follow-up Date <span class="required">*</span></label>
+                        <input type="date" id="follow_up_date" name="follow_up_date" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="contact_type">Contact Type <span class="required">*</span></label>
+                        <select id="contact_type" name="contact_type" required>
+                            <option value="">Select Type</option>
+                            <option value="Call">Phone Call</option>
+                            <option value="Email">Email</option>
+                            <option value="Meeting">Meeting</option>
+                            <option value="Visit">Site Visit</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" rows="3" placeholder="Details about the follow-up conversation..."></textarea>
+            </div>
+
+            <div class="form-field">
+                <label for="next_action">Next Action</label>
+                <input type="text" id="next_action" name="next_action" placeholder="e.g., Send revised quote, Schedule demo">
+            </div>
+
+            <div class="follow-up-history" id="followUpHistory" style="display: none;">
+                <h4>Previous Follow-ups</h4>
+                <div id="historyContainer"></div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadQuotation() {
+            const quotation = document.getElementById('quotation').value;
+            if (!quotation) {
+                document.getElementById('quotationInfo').style.display = 'none';
+                document.getElementById('followUpHistory').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/quotations/${quotation}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderQuotation(data) {
+            document.getElementById('info_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_amount').textContent = (data.grand_total || 0).toFixed(2);
+
+            if (data.transaction_date) {
+                const created = new Date(data.transaction_date);
+                const today = new Date();
+                const days = Math.floor((today - created) / (1000 * 60 * 60 * 24));
+                document.getElementById('info_age').textContent = `${days} days`;
+            }
+
+            document.getElementById('quotationInfo').style.display = 'block';
+
+            // Show follow-up history if available
+            if (data.follow_ups && data.follow_ups.length > 0) {
+                const container = document.getElementById('historyContainer');
+                container.innerHTML = data.follow_ups.map(f => `
+                    <div class="history-item">
+                        <span class="history-date">${f.date}</span>
+                        <span class="history-type">${f.contact_type}</span>
+                        <p>${f.notes || 'No notes'}</p>
+                    </div>
+                `).join('');
+                document.getElementById('followUpHistory').style.display = 'block';
+            }
+        }
+
+        function getTaskInput() {
+            return {
+                quotation: document.getElementById('quotation').value,
+                follow_up_date: document.getElementById('follow_up_date').value,
+                contact_type: document.getElementById('contact_type').value,
+                notes: document.getElementById('notes').value || null,
+                next_action: document.getElementById('next_action').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.quotation) { alert('Please select a quotation'); return false; }
+            if (!data.follow_up_date) { alert('Please enter follow-up date'); return false; }
+            if (!data.contact_type) { alert('Please select contact type'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.quotation || data.name) {
+                renderQuotation(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('quotation');
+                select.innerHTML = '<option value="">Select Quotation</option>' +
+                    items.map(q => `<option value="${q.name}">${q.label || q.name}</option>`).join('');
+            }
+        }
+
+        // Set default date to today
+        document.getElementById('follow_up_date').valueAsDate = new Date();
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

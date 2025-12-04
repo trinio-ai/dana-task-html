@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item_name": {"type": "string", "minLength": 1}, "item_group": {"type": "string", "minLength": 1}, "stock_uom": {"type": "string"}, "is_stock_item": {"type": "boolean"}}, "required": ["item_name", "item_group"]}

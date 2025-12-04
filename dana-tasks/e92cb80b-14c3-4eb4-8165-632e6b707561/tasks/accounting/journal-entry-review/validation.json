@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"journal_entry": {"type": "string"}, "review_status": {"type": "string", "enum": ["approved", "rejected"]}, "review_comments": {"type": "string"}}, "required": ["journal_entry", "review_status"]}

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"item_code": {"type": "string"}, "warehouse": {"type": "string", "enum": ["전체", "중앙창고", "지점창고A", "지점창고B"]}, "as_of_date": {"type": "string"}}, "required": []}

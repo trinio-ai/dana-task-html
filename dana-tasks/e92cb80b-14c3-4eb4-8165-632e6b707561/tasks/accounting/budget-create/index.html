@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .budget-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .budget-table th, .budget-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .budget-table th { background: #f5f5f5; }
+        .budget-table input[type="number"] { width: 120px; }
+        .total-row { font-weight: bold; background: #e7f3ff; }
+        .controls-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="budget_name">Budget Name <span class="required">*</span></label>
+                    <input type="text" id="budget_name" name="budget_name" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="fiscal_year">Fiscal Year <span class="required">*</span></label>
+                    <select id="fiscal_year" name="fiscal_year" required data-fetch-endpoint="/api/erp/fiscal-years">
+                        <option value="">Select Fiscal Year</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="company">Company <span class="required">*</span></label>
+                    <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies">
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="budget_against">Budget Against <span class="required">*</span></label>
+                    <select id="budget_against" name="budget_against" required onchange="toggleBudgetTarget()">
+                        <option value="">Select Type</option>
+                        <option value="Cost Center">Cost Center</option>
+                        <option value="Project">Project</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field" id="cost_center_field">
+                    <label for="cost_center">Cost Center</label>
+                    <select id="cost_center" name="cost_center" data-fetch-endpoint="/api/erp/cost-centers?is_group=0">
+                        <option value="">Select Cost Center</option>
+                    </select>
+                </div>
+
+                <div class="form-field" id="project_field" style="display: none;">
+                    <label for="project">Project</label>
+                    <select id="project" name="project" data-fetch-endpoint="/api/erp/projects">
+                        <option value="">Select Project</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <h4>Budget Controls</h4>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>
+                            <input type="checkbox" id="applicable_on_material_request" name="applicable_on_material_request">
+                            Check budget on Material Request
+                        </label>
+                    </div>
+                    <div class="form-field">
+                        <label>
+                            <input type="checkbox" id="applicable_on_purchase_order" name="applicable_on_purchase_order">
+                            Check budget on Purchase Order
+                        </label>
+                    </div>
+                    <div class="form-field">
+                        <label>
+                            <input type="checkbox" id="applicable_on_booking_actual_expenses" name="applicable_on_booking_actual_expenses" checked>
+                            Check budget on Actual Expenses
+                        </label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="action_if_annual_budget_exceeded">If Annual Budget Exceeded</label>
+                        <select id="action_if_annual_budget_exceeded" name="action_if_annual_budget_exceeded">
+                            <option value="Stop">Stop</option>
+                            <option value="Warn">Warn</option>
+                            <option value="Ignore">Ignore</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label for="action_if_accumulated_monthly_budget_exceeded">If Monthly Budget Exceeded</label>
+                        <select id="action_if_accumulated_monthly_budget_exceeded" name="action_if_accumulated_monthly_budget_exceeded">
+                            <option value="Stop">Stop</option>
+                            <option value="Warn" selected>Warn</option>
+                            <option value="Ignore">Ignore</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <h4>Budget Accounts</h4>
+            <table class="budget-table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Budget Amount</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="accountsBody">
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td>Total Budget</td>
+                        <td id="total_budget">0.00</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+            <button type="button" onclick="addAccountRow()">+ Add Account</button>
+        </form>
+    </div>
+
+    <script>
+        let accountOptions = [];
+
+        function toggleBudgetTarget() {
+            const budgetAgainst = document.getElementById('budget_against').value;
+            document.getElementById('cost_center_field').style.display = budgetAgainst === 'Cost Center' ? 'block' : 'none';
+            document.getElementById('project_field').style.display = budgetAgainst === 'Project' ? 'block' : 'none';
+        }
+
+        function addAccountRow(account = '', amount = 0) {
+            const tbody = document.getElementById('accountsBody');
+            const row = document.createElement('tr');
+            const optionsHtml = accountOptions.map(a =>
+                `<option value="${a.value}" ${a.value === account ? 'selected' : ''}>${a.label}</option>`
+            ).join('');
+            row.innerHTML = `
+                <td>
+                    <select name="account" required onchange="calculateTotal()">
+                        <option value="">Select Account</option>
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="budget_amount" min="0" step="0.01" value="${amount}" onchange="calculateTotal()">
+                </td>
+                <td>
+                    <button type="button" onclick="this.closest('tr').remove(); calculateTotal();">Remove</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('#accountsBody input[name="budget_amount"]').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            document.getElementById('total_budget').textContent = total.toFixed(2);
+        }
+
+        function getTaskInput() {
+            const accounts = [];
+            document.querySelectorAll('#accountsBody tr').forEach(row => {
+                const account = row.querySelector('[name="account"]').value;
+                const amount = parseFloat(row.querySelector('[name="budget_amount"]').value) || 0;
+                if (account && amount > 0) {
+                    accounts.push({ account, budget_amount: amount });
+                }
+            });
+
+            const budgetAgainst = document.getElementById('budget_against').value;
+            return {
+                budget_name: document.getElementById('budget_name').value,
+                fiscal_year: document.getElementById('fiscal_year').value,
+                company: document.getElementById('company').value,
+                budget_against: budgetAgainst,
+                cost_center: budgetAgainst === 'Cost Center' ? document.getElementById('cost_center').value : null,
+                project: budgetAgainst === 'Project' ? document.getElementById('project').value : null,
+                applicable_on_material_request: document.getElementById('applicable_on_material_request').checked,
+                applicable_on_purchase_order: document.getElementById('applicable_on_purchase_order').checked,
+                applicable_on_booking_actual_expenses: document.getElementById('applicable_on_booking_actual_expenses').checked,
+                action_if_annual_budget_exceeded: document.getElementById('action_if_annual_budget_exceeded').value,
+                action_if_accumulated_monthly_budget_exceeded: document.getElementById('action_if_accumulated_monthly_budget_exceeded').value,
+                accounts: accounts
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.budget_name) { alert('Please enter budget name'); return false; }
+            if (!data.fiscal_year) { alert('Please select fiscal year'); return false; }
+            if (!data.company) { alert('Please select company'); return false; }
+            if (!data.budget_against) { alert('Please select budget type'); return false; }
+            if (data.budget_against === 'Cost Center' && !data.cost_center) { alert('Please select cost center'); return false; }
+            if (data.budget_against === 'Project' && !data.project) { alert('Please select project'); return false; }
+            if (data.accounts.length === 0) { alert('Please add at least one budget account'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options && data.options.account) {
+                accountOptions = data.options.account;
+            }
+            // Pre-populate account rows
+            if (data.accounts) {
+                data.accounts.forEach(acc => addAccountRow(acc.account, acc.budget_amount));
+            } else {
+                addAccountRow();
+            }
+            calculateTotal();
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+
+        // Add initial row
+        addAccountRow();
+    </script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="workstation">Workstation <span class="required">*</span></label>
+  <select id="workstation" name="workstation" required data-fetch-endpoint="/api/v1/erp/manufacturing/workstation">
+    <option value="">Select</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="hour_rate_labour">Labor Cost (per hour) <span class="required">*</span></label>
+  <input type="number" id="hour_rate_labour" name="hour_rate_labour" required min="0" step="0.01">
+</div>
+<div class="form-field">
+  <label for="hour_rate_electricity">Electricity Cost (per hour) <span class="required">*</span></label>
+  <input type="number" id="hour_rate_electricity" name="hour_rate_electricity" required min="0" step="0.01">
+</div>
+<div class="form-field">
+  <label for="hour_rate_consumable">Consumable Cost (per hour) <span class="required">*</span></label>
+  <input type="number" id="hour_rate_consumable" name="hour_rate_consumable" required min="0" step="0.01">
+</div>
+<div class="form-field">
+  <label for="hour_rate_rent">Rent Cost (per hour) <span class="required">*</span></label>
+  <input type="number" id="hour_rate_rent" name="hour_rate_rent" required min="0" step="0.01">
+</div>
+<div class="form-field">
+  <label for="hour_rate">Total Hourly Rate</label>
+  <input type="number" id="hour_rate" name="hour_rate" readonly step="0.01">
+  <small class="help-text">Auto-calculated sum of all costs</small>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Auto-calculate total hourly rate
+        function calculateTotalRate() {
+            const labour = parseFloat(document.getElementById('hour_rate_labour').value) || 0;
+            const electricity = parseFloat(document.getElementById('hour_rate_electricity').value) || 0;
+            const consumable = parseFloat(document.getElementById('hour_rate_consumable').value) || 0;
+            const rent = parseFloat(document.getElementById('hour_rate_rent').value) || 0;
+
+            const total = labour + electricity + consumable + rent;
+            document.getElementById('hour_rate').value = total.toFixed(2);
+        }
+
+        // Add event listeners for auto-calculation
+        ['hour_rate_labour', 'hour_rate_electricity', 'hour_rate_consumable', 'hour_rate_rent'].forEach(id => {
+            document.getElementById(id).addEventListener('input', calculateTotalRate);
+        });
+
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'workstation-set-costs',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('Form submitted successfully!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = 'This field is required';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+
+            // Recalculate total after setting values
+            calculateTotalRate();
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

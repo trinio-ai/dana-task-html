@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .items-table th, .items-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+        .items-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn-add { background: #007bff; color: white; }
+        .btn-remove { background: #dc3545; color: white; padding: 4px 8px; }
+        .difference-positive { color: #28a745; }
+        .difference-negative { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="posting_date">Posting Date <span class="required">*</span></label>
+                        <input type="date" id="posting_date" name="posting_date" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="purpose">Purpose</label>
+                        <select id="purpose" name="purpose">
+                            <option value="Stock Reconciliation">Stock Reconciliation</option>
+                            <option value="Opening Stock">Opening Stock</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="expense_account">Difference Account</label>
+                        <select id="expense_account" name="expense_account"
+                                data-fetch-endpoint="/api/erp/accounts?account_type=Stock Adjustment">
+                            <option value="">Select Account</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label>Items <span class="required">*</span></label>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">Current Qty</th>
+                            <th class="text-right">New Qty</th>
+                            <th class="text-right">Difference</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody"></tbody>
+                </table>
+                <button type="button" class="btn btn-add" onclick="addRow()" style="margin-top:10px;">Add Item</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let itemOptions = [];
+        let warehouseOptions = [];
+
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        function addRow() {
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <select class="item-select" required onchange="fetchCurrentQty(this.closest('tr'))">
+                        <option value="">Select Item</option>
+                        ${itemOptions.map(i => `<option value="${i.value}">${i.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <select class="warehouse-select" required onchange="fetchCurrentQty(this.closest('tr'))">
+                        <option value="">Select</option>
+                        ${warehouseOptions.map(w => `<option value="${w.value}">${w.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td class="text-right"><span class="current-qty">0</span></td>
+                <td><input type="number" class="new-qty" value="0" min="0" oninput="updateDifference(this.closest('tr'))"></td>
+                <td class="text-right"><span class="difference">0</span></td>
+                <td><button type="button" class="btn btn-remove" onclick="this.closest('tr').remove()">X</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function fetchCurrentQty(row) {
+            const itemCode = row.querySelector('.item-select')?.value;
+            const warehouse = row.querySelector('.warehouse-select')?.value;
+            if (itemCode && warehouse) {
+                // TODO: Fetch actual qty from API
+                row.querySelector('.current-qty').textContent = '0';
+                updateDifference(row);
+            }
+        }
+
+        function updateDifference(row) {
+            const current = parseFloat(row.querySelector('.current-qty').textContent) || 0;
+            const newQty = parseFloat(row.querySelector('.new-qty').value) || 0;
+            const diff = newQty - current;
+            const diffSpan = row.querySelector('.difference');
+            diffSpan.textContent = diff.toLocaleString();
+            diffSpan.className = 'difference ' + (diff > 0 ? 'difference-positive' : diff < 0 ? 'difference-negative' : '');
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemCode = row.querySelector('.item-select')?.value;
+                const warehouse = row.querySelector('.warehouse-select')?.value;
+                const qty = parseFloat(row.querySelector('.new-qty')?.value || 0);
+                if (itemCode && warehouse) {
+                    items.push({ item_code: itemCode, warehouse: warehouse, qty: qty });
+                }
+            });
+
+            return {
+                posting_date: document.getElementById('posting_date').value,
+                purpose: document.getElementById('purpose').value,
+                expense_account: document.getElementById('expense_account').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('posting_date').value) {
+                alert('Please select posting date');
+                return false;
+            }
+            if (document.querySelectorAll('#itemsBody tr').length === 0) {
+                alert('Please add at least one item');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options?.item_code) itemOptions = data.options.item_code;
+            if (data.options?.warehouse) warehouseOptions = data.options.warehouse;
+            if (document.querySelectorAll('#itemsBody tr').length === 0) addRow();
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

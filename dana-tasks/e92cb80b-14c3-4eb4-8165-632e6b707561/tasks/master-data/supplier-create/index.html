@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+    <style>
+        .field-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .link-button { background: none; border: none; color: #0b61d6; cursor: pointer; padding: 0; font-size: 0.9em; }
+    </style>
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="supplier_name">공급처명 <span class="required">*</span></label>
+  <input type="text" id="supplier_name" name="supplier_name" required>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="supplier_group">공급처 그룹 <span class="required">*</span></label>
+    <button type="button" class="link-button" onclick="openDependencyTask('supplier-group-create')">+ New Supplier Group</button>
+  </div>
+  <select id="supplier_group" name="supplier_group" required onchange="handleNewOption(this)">
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="payment_terms">결제 조건</label>
+    <button type="button" class="link-button" onclick="openDependencyTask('payment-terms-create')">+ New Payment Terms</button>
+  </div>
+  <select id="payment_terms" name="payment_terms" onchange="handleNewOption(this)">
+    <option value="">Select payment terms</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="default_currency">기본 통화</label>
+  <select id="default_currency" name="default_currency">
+    <option value="">Select currency</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="supplier_type">구분</label>
+  <select id="supplier_type" name="supplier_type">
+    <option value="Company">Company</option>
+    <option value="Individual">Individual</option>
+  </select>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'supplier-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function populateSelect(selectId, options = [], dependencyTaskId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const base = select.querySelector('option')?.outerHTML || '<option value=\"\">Select</option>';
+            const newOption = dependencyTaskId ? `<option value=\"__new__${dependencyTaskId}\">+ New</option>` : '';
+            select.innerHTML = base + options.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('') + newOption;
+        }
+
+        function openDependencyTask(taskId) {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'openTask', taskId }, '*');
+            } else {
+                console.log('Open dependency task:', taskId);
+            }
+        }
+
+        function handleNewOption(selectEl) {
+            if (selectEl && selectEl.value.startsWith('__new__')) {
+                const taskId = selectEl.value.replace('__new__', '');
+                selectEl.value = '';
+                openDependencyTask(taskId);
+            }
+        }
+
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            populateSelect('supplier_group', options.supplier_group || [], 'supplier-group-create');
+            populateSelect('payment_terms', options.payment_terms || [], 'payment-terms-create');
+            populateSelect('default_currency', options.default_currency || []);
+
+            if (defaults.supplier_type) document.getElementById('supplier_type').value = defaults.supplier_type;
+            if (defaults.default_currency) document.getElementById('default_currency')?.value = defaults.default_currency;
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input && !['supplier_group','payment_terms','default_currency','supplier_type'].includes(key)) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

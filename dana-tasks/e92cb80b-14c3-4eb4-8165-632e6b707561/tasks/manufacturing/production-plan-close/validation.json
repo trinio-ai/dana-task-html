@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"plan_id": {"type": "string"}, "completion_date": {"type": "string"}, "close_work_orders": {"type": "boolean"}, "confirm": {"type": "boolean"}}, "required": ["plan_id", "completion_date", "confirm"]}

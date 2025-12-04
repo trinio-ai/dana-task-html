@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1f2937; background: #f9fafb; }
+        .form-container { padding: 16px; max-width: 800px; margin: 0 auto; }
+        .form-section { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .section-title { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+        .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 200px; margin-bottom: 12px; }
+        .form-group.full-width { flex: 100%; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 4px; color: #374151; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-group .required { color: #dc2626; margin-left: 2px; }
+        .form-group .helper-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .form-group.error input, .form-group.error select { border-color: #dc2626; }
+        .form-group .error-message { font-size: 12px; color: #dc2626; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-section">
+                <div class="section-title">Customer Group Information</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="customer_group_name">Group Name <span class="required">*</span></label>
+                        <input type="text" id="customer_group_name" name="customer_group_name" required placeholder="Enter customer group name">
+                    </div>
+                    <div class="form-group">
+                        <label for="parent_group">Parent Group</label>
+                        <select id="parent_group" name="parent_group">
+                            <option value="">-- None (Top Level) --</option>
+                        </select>
+                        <div class="helper-text">Optional. Select a parent to create a group hierarchy.</div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const form = document.getElementById('taskForm');
+            const formData = {};
+            form.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.name) {
+                    if (input.type === 'checkbox') {
+                        formData[input.name] = input.checked;
+                    } else {
+                        formData[input.name] = input.value;
+                    }
+                }
+            });
+            return formData;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            const form = document.getElementById('taskForm');
+
+            form.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('error');
+                const errorMsg = group.querySelector('.error-message');
+                if (errorMsg) errorMsg.remove();
+            });
+
+            form.querySelectorAll('[required]').forEach(input => {
+                if (!input.value.trim()) {
+                    const group = input.closest('.form-group');
+                    if (group) {
+                        group.classList.add('error');
+                        const label = group.querySelector('label').textContent.replace('*', '').trim();
+                        errors.push(`${label} is required`);
+                    }
+                }
+            });
+
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Populate dropdowns first if options provided
+            if (data.options) {
+                populateDropdowns(data.options);
+            }
+
+            // Then set form values
+            Object.keys(data).forEach(key => {
+                if (key === 'options') return;
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        function populateDropdowns(options) {
+            // Populate parent group dropdown
+            const parentSelect = document.getElementById('parent_group');
+            if (parentSelect && options.parent_group) {
+                while (parentSelect.options.length > 1) parentSelect.remove(1);
+                options.parent_group.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    parentSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            const taskData = window.TASK_DATA || {};
+            if (taskData.options) {
+                populateDropdowns(taskData.options);
+            }
+        });
+
+        // Expose functions
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

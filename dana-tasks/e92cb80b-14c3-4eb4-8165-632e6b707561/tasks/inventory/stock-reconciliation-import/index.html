@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .upload-zone { border: 2px dashed #ddd; padding: 40px; text-align: center; border-radius: 8px; margin: 15px 0; }
+        .upload-zone.dragover { border-color: #007bff; background: #f0f7ff; }
+        .preview-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        .preview-table th, .preview-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+        .preview-table th { background: #f5f5f5; }
+        .text-right { text-align: right; }
+        .info-text { font-size: 13px; color: #666; margin: 10px 0; }
+        .template-link { color: #007bff; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="posting_date">Posting Date <span class="required">*</span></label>
+                <input type="date" id="posting_date" name="posting_date" required>
+            </div>
+
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleFile(this)">
+                <p>Drag & drop a CSV or Excel file here</p>
+                <p>or <span class="template-link" onclick="document.getElementById('fileInput').click()">browse files</span></p>
+                <p class="info-text">Required columns: Item Code, Warehouse, Qty</p>
+            </div>
+
+            <div id="previewSection" style="display:none;">
+                <h4>Preview (<span id="rowCount">0</span> rows)</h4>
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Warehouse</th>
+                            <th class="text-right">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let importData = [];
+
+        document.getElementById('posting_date').valueAsDate = new Date();
+
+        // Drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        function handleFile(input) {
+            const file = input.files[0];
+            if (file) processFile(file);
+        }
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseCSV(content);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(content) {
+            const lines = content.split('\n').filter(l => l.trim());
+            if (lines.length < 2) {
+                alert('File must have at least a header row and one data row');
+                return;
+            }
+
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const itemIdx = headers.findIndex(h => h.includes('item'));
+            const whIdx = headers.findIndex(h => h.includes('warehouse'));
+            const qtyIdx = headers.findIndex(h => h.includes('qty') || h.includes('quantity'));
+
+            if (itemIdx < 0 || whIdx < 0 || qtyIdx < 0) {
+                alert('Required columns not found: Item Code, Warehouse, Qty');
+                return;
+            }
+
+            importData = [];
+            const tbody = document.getElementById('previewBody');
+            tbody.innerHTML = '';
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim());
+                if (cols[itemIdx] && cols[whIdx]) {
+                    const item = {
+                        item_code: cols[itemIdx],
+                        warehouse: cols[whIdx],
+                        qty: parseFloat(cols[qtyIdx]) || 0
+                    };
+                    importData.push(item);
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.item_code}</td>
+                        <td>${item.warehouse}</td>
+                        <td class="text-right">${item.qty.toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                }
+            }
+
+            document.getElementById('rowCount').textContent = importData.length;
+            document.getElementById('previewSection').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                posting_date: document.getElementById('posting_date').value,
+                items: importData
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('posting_date').value) {
+                alert('Please select posting date');
+                return false;
+            }
+            if (importData.length === 0) {
+                alert('Please upload a file with data');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {}
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

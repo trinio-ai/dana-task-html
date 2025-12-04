@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dependency-helper.js"></script>
+    <style>
+        .field-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .link-button { background: none; border: none; color: #0b61d6; cursor: pointer; padding: 0; font-size: 0.9em; }
+    </style>
+    </head>
+<body>
+    <div class="form-container">
+
+        <form id="taskForm">
+<div class="form-field">
+  <label for="item_code">품목 코드 <span class="required">*</span></label>
+  <input type="text" id="item_code" name="item_code" required pattern="^[A-Za-z0-9-_]+$">
+  <small class="help-text">고유 품목 코드 (특수문자 불가)</small>
+</div>
+<div class="form-field">
+  <label for="item_name">품목명 <span class="required">*</span></label>
+  <input type="text" id="item_name" name="item_name" required>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="item_group">품목 그룹 <span class="required">*</span></label>
+    <button type="button" class="link-button" onclick="openDependencyTask('item-group-create')">+ New Item Group</button>
+  </div>
+  <select id="item_group" name="item_group" required data-fetch-endpoint="/api/erp/item-groups" data-fetch-filter='{"is_leaf": true}' onchange="handleNewOption(this)">
+    <option value="">선택하세요</option>
+  </select>
+  <small class="help-text">말단 그룹만 선택 가능</small>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="stock_uom">재고 단위 <span class="required">*</span></label>
+    <button type="button" class="link-button" onclick="openDependencyTask('uom-create')">+ New UOM</button>
+  </div>
+  <select id="stock_uom" name="stock_uom" required data-fetch-endpoint="/api/erp/uoms" onchange="handleNewOption(this)">
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="brand">브랜드</label>
+    <button type="button" class="link-button" onclick="openDependencyTask('brand-create')">+ New Brand</button>
+  </div>
+  <select id="brand" name="brand" onchange="handleNewOption(this)">
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <div class="field-header">
+    <label for="default_warehouse">기본 창고</label>
+    <button type="button" class="link-button" onclick="openDependencyTask('warehouse-create')">+ New Warehouse</button>
+  </div>
+  <select id="default_warehouse" name="default_warehouse" onchange="handleNewOption(this)">
+    <option value="">선택하세요</option>
+  </select>
+</div>
+<div class="form-field">
+  <label class="checkbox-label">
+    <input type="checkbox" id="is_stock_item" name="is_stock_item" checked>
+    재고 품목 유지
+  </label>
+  <small class="help-text">체크 해제 시 서비스 품목으로 처리</small>
+</div>
+<div class="form-field">
+  <label class="checkbox-label">
+    <input type="checkbox" id="allow_negative_stock" name="allow_negative_stock">
+    마이너스 재고 허용
+  </label>
+  <small class="help-text">회사 설정에 따라 검증됨</small>
+</div>
+
+            </form>
+    </div>
+
+    <script>
+        // Form submission handler
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            const formData = getTaskInput();
+
+            // Send to parent window (iframe communication)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'taskSubmit',
+                    taskId: 'item-create',
+                    data: formData
+                }, '*');
+            } else {
+                console.log('Task data:', formData);
+                alert('폼이 제출되었습니다!');
+            }
+        });
+
+        // Get task input data
+        function getTaskInput() {
+            const formData = new FormData(document.getElementById('taskForm'));
+            const data = {};
+
+            // Convert form data to object
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Convert checkboxes to boolean
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                data[cb.name] = cb.checked;
+            });
+
+            // Handle table fields
+            const tables = document.querySelectorAll('.child-table');
+            tables.forEach(table => {
+                const tableName = table.dataset.tableName;
+                const rows = [];
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    const rowData = {};
+                    row.querySelectorAll('input, select').forEach(input => {
+                        rowData[input.name] = input.value;
+                    });
+                    rows.push(rowData);
+                });
+                data[tableName] = rows;
+            });
+
+            return data;
+        }
+
+        // Validate form
+        function validateForm() {
+            let isValid = true;
+
+            // Clear previous errors
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+
+            // Validate required fields
+            document.querySelectorAll('[required]').forEach(input => {
+                if (!input.value) {
+                    const field = input.closest('.form-field');
+                    if (field) {
+                        field.classList.add('error');
+                        const errorMsg = field.querySelector('.error-message') || document.createElement('div');
+                        errorMsg.className = 'error-message';
+                        errorMsg.textContent = '필수 입력 항목입니다';
+                        if (!field.querySelector('.error-message')) {
+                            field.appendChild(errorMsg);
+                        }
+                    }
+                    isValid = false;
+                }
+            });
+
+            return isValid;
+        }
+
+        // Set task input (pre-populate form)
+        function setTaskInput(data) {
+            if (!data) return;
+
+            const options = data.options || data.data?.options || {};
+            const defaults = data.defaults || data.data?.defaults || {};
+
+            populateSelect('item_group', options.item_group || [], 'item-group-create');
+            populateSelect('stock_uom', options.stock_uom || [], 'uom-create');
+            populateSelect('purchase_uom', options.purchase_uom || [], 'uom-create');
+            populateSelect('sales_uom', options.sales_uom || [], 'uom-create');
+            populateSelect('brand', options.brand || [], 'brand-create');
+            populateSelect('default_warehouse', options.default_warehouse || [], 'warehouse-create');
+
+            Object.entries(defaults).forEach(([key, value]) => {
+                const input = document.getElementById(key);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!value;
+                    } else {
+                        input.value = value;
+                    }
+                }
+            });
+
+            Object.keys(data).forEach(key => {
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input && !['item_group','stock_uom','purchase_uom','sales_uom','brand','default_warehouse'].includes(key)) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        function populateSelect(selectId, options = [], dependencyTaskId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const base = select.querySelector('option')?.outerHTML || '<option value=\"\">선택하세요</option>';
+            const newOption = dependencyTaskId ? `<option value=\"__new__${dependencyTaskId}\">+ New</option>` : '';
+            select.innerHTML = base + options.map(opt => `<option value=\"${opt.value}\">${opt.label}</option>`).join('') + newOption;
+        }
+
+        function openDependencyTask(taskId) {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'openTask', taskId }, '*');
+            } else {
+                console.log('Open dependency task:', taskId);
+            }
+        }
+
+        function handleNewOption(selectEl) {
+            if (selectEl && selectEl.value.startsWith('__new__')) {
+                const taskId = selectEl.value.replace('__new__', '');
+                selectEl.value = '';
+                openDependencyTask(taskId);
+            }
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').reset();
+            document.querySelectorAll('.form-field').forEach(field => {
+                field.classList.remove('error');
+            });
+        }
+
+        // Listen for pre-fill data from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'taskData') {
+                setTaskInput(event.data.data);
+            }
+        });
+
+        // Expose functions for external access
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

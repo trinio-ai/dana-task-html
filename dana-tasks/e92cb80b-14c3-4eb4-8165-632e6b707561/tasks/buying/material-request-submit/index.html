@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .detail-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .warning-box { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="material_request">Material Request <span class="required">*</span></label>
+                <select id="material_request" name="material_request" required onchange="loadRequest()"
+                        data-fetch-endpoint="/api/erp/buying/material-requests?docstatus=0">
+                    <option value="">Select Material Request</option>
+                </select>
+            </div>
+
+            <div class="detail-section" id="requestDetails" style="display: none;">
+                <h4>Request Details</h4>
+                <div class="detail-row">
+                    <span>Type:</span>
+                    <span id="request_type">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Request Date:</span>
+                    <span id="transaction_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Required By:</span>
+                    <span id="schedule_date">-</span>
+                </div>
+                <div class="detail-row">
+                    <span>Status:</span>
+                    <span id="status">-</span>
+                </div>
+            </div>
+
+            <div id="itemsSection" style="display: none;">
+                <h4>Items</h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Warehouse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="warning-box" id="submitWarning" style="display: none;">
+                <strong>Note:</strong> Once submitted, this material request will be available for conversion to RFQ or Purchase Order.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentRequest = null;
+
+        function loadRequest() {
+            const mrId = document.getElementById('material_request').value;
+            if (!mrId) {
+                document.getElementById('requestDetails').style.display = 'none';
+                document.getElementById('itemsSection').style.display = 'none';
+                document.getElementById('submitWarning').style.display = 'none';
+                return;
+            }
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/material-requests/${mrId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderRequest(data) {
+            currentRequest = data;
+            document.getElementById('request_type').textContent = data.material_request_type || '-';
+            document.getElementById('transaction_date').textContent = data.transaction_date || '-';
+            document.getElementById('schedule_date').textContent = data.schedule_date || '-';
+            document.getElementById('status').textContent = data.status || 'Draft';
+
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = (data.items || []).map(item => `
+                <tr>
+                    <td>${item.item_name || item.item_code}</td>
+                    <td>${item.qty} ${item.uom || ''}</td>
+                    <td>${item.warehouse || '-'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('requestDetails').style.display = 'block';
+            document.getElementById('itemsSection').style.display = 'block';
+            document.getElementById('submitWarning').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                material_request: document.getElementById('material_request').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.material_request) { alert('Please select a material request'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.material_request_type) {
+                renderRequest(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

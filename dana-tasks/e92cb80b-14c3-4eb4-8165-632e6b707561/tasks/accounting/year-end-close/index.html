@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .warning-box { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .warning-box h4 { color: #856404; margin-top: 0; }
+        .summary-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .summary-row:last-child { border-bottom: none; }
+        .profit { color: #28a745; font-weight: bold; }
+        .loss { color: #dc3545; font-weight: bold; }
+        .confirm-section { background: #fff; border: 2px solid #dc3545; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="warning-box">
+                <h4>Warning: Year-End Close is Irreversible</h4>
+                <p>This action will:</p>
+                <ul>
+                    <li>Close all income and expense accounts for the fiscal year</li>
+                    <li>Transfer net profit/loss to retained earnings</li>
+                    <li>Prevent further transactions in the closed fiscal year</li>
+                </ul>
+                <p>Make sure all period adjustments are complete before proceeding.</p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="fiscal_year">Fiscal Year <span class="required">*</span></label>
+                    <select id="fiscal_year" name="fiscal_year" required data-fetch-endpoint="/api/erp/fiscal-years" onchange="loadYearSummary()">
+                        <option value="">Select Fiscal Year</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="company">Company <span class="required">*</span></label>
+                    <select id="company" name="company" required data-fetch-endpoint="/api/erp/companies" onchange="loadYearSummary()">
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="closing_date">Closing Date <span class="required">*</span></label>
+                    <input type="date" id="closing_date" name="closing_date" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="retained_earnings_account">Retained Earnings Account <span class="required">*</span></label>
+                    <select id="retained_earnings_account" name="retained_earnings_account" required
+                            data-fetch-endpoint="/api/erp/accounts?account_type=Equity">
+                        <option value="">Select Account</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="closing_account">Closing Account (Temporary)</label>
+                    <select id="closing_account" name="closing_account"
+                            data-fetch-endpoint="/api/erp/accounts?account_type=Equity">
+                        <option value="">Select Account (Optional)</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="remarks">Remarks</label>
+                    <input type="text" id="remarks" name="remarks" placeholder="Year-end closing entry">
+                </div>
+            </div>
+
+            <div class="summary-section">
+                <h4>Fiscal Year Summary</h4>
+                <div class="summary-row">
+                    <span>Total Income:</span>
+                    <span id="total_income">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Expenses:</span>
+                    <span id="total_expense">0.00</span>
+                </div>
+                <div class="summary-row" style="font-weight: bold; font-size: 1.1em;">
+                    <span>Net Profit/Loss:</span>
+                    <span id="net_profit_loss">0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Income Accounts to Close:</span>
+                    <span id="income_count">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Expense Accounts to Close:</span>
+                    <span id="expense_count">0</span>
+                </div>
+            </div>
+
+            <div class="confirm-section">
+                <div class="form-field">
+                    <label>
+                        <input type="checkbox" id="confirm_close" name="confirm_close" required>
+                        I understand that year-end close is irreversible and have verified all adjustments are complete
+                    </label>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let yearSummary = null;
+
+        function loadYearSummary() {
+            const fiscalYear = document.getElementById('fiscal_year').value;
+            const company = document.getElementById('company').value;
+
+            if (!fiscalYear || !company) return;
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: '/api/v1/erp/accounting/year-end-close/summary',
+                filters: { fiscal_year: fiscalYear, company: company }
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function getTaskInput() {
+            return {
+                fiscal_year: document.getElementById('fiscal_year').value,
+                company: document.getElementById('company').value,
+                closing_date: document.getElementById('closing_date').value,
+                retained_earnings_account: document.getElementById('retained_earnings_account').value,
+                closing_account: document.getElementById('closing_account').value || null,
+                remarks: document.getElementById('remarks').value || 'Year-end closing entry',
+                confirm_close: document.getElementById('confirm_close').checked
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.fiscal_year) { alert('Please select fiscal year'); return false; }
+            if (!data.company) { alert('Please select company'); return false; }
+            if (!data.closing_date) { alert('Please select closing date'); return false; }
+            if (!data.retained_earnings_account) { alert('Please select retained earnings account'); return false; }
+            if (!data.confirm_close) { alert('Please confirm that you want to close the fiscal year'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            yearSummary = data;
+
+            document.getElementById('total_income').textContent = (data.total_income || 0).toFixed(2);
+            document.getElementById('total_expense').textContent = (data.total_expense || 0).toFixed(2);
+
+            const netProfitLoss = (data.total_income || 0) - (data.total_expense || 0);
+            const netProfitLossEl = document.getElementById('net_profit_loss');
+            netProfitLossEl.textContent = netProfitLoss.toFixed(2);
+            netProfitLossEl.className = netProfitLoss >= 0 ? 'profit' : 'loss';
+
+            document.getElementById('income_count').textContent = data.income_accounts_count || 0;
+            document.getElementById('expense_count').textContent = data.expense_accounts_count || 0;
+
+            // Set closing date to fiscal year end if available
+            if (data.fiscal_year_end) {
+                document.getElementById('closing_date').value = data.fiscal_year_end;
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

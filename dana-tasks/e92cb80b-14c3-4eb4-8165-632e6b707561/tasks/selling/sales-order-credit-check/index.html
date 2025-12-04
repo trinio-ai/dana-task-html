@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .credit-status { padding: 20px; border-radius: 8px; margin: 15px 0; }
+        .credit-pass { background: #d4edda; border: 1px solid #c3e6cb; }
+        .credit-fail { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .credit-warning { background: #fff3cd; border: 1px solid #ffc107; }
+        .credit-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .credit-value { font-weight: bold; font-size: 18px; }
+        .progress-bar { height: 20px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { height: 100%; transition: width 0.3s; }
+        .progress-good { background: #28a745; }
+        .progress-warning { background: #ffc107; }
+        .progress-danger { background: #dc3545; }
+        .bypass-section { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .checkbox-field { display: flex; align-items: center; gap: 10px; }
+        .checkbox-field input { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_order">Select Sales Order <span class="required">*</span></label>
+                <select id="sales_order" name="sales_order" required onchange="loadSalesOrder()"
+                        data-fetch-endpoint="/api/erp/selling/sales-orders?docstatus=0">
+                    <option value="">Select Sales Order</option>
+                </select>
+            </div>
+
+            <div class="credit-status" id="creditStatus" style="display: none;">
+                <h4 id="credit_title">Credit Check Status</h4>
+                <div class="credit-row">
+                    <span>Customer:</span>
+                    <span id="customer_name">-</span>
+                </div>
+                <div class="credit-row">
+                    <span>Credit Limit:</span>
+                    <span class="credit-value" id="credit_limit">0.00</span>
+                </div>
+                <div class="credit-row">
+                    <span>Current Outstanding:</span>
+                    <span class="credit-value" id="outstanding">0.00</span>
+                </div>
+                <div class="credit-row">
+                    <span>This Order Amount:</span>
+                    <span class="credit-value" id="order_amount">0.00</span>
+                </div>
+                <div class="credit-row">
+                    <span>New Total Outstanding:</span>
+                    <span class="credit-value" id="new_total">0.00</span>
+                </div>
+                <div class="credit-row">
+                    <span>Available Credit:</span>
+                    <span class="credit-value" id="available_credit">0.00</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress_fill"></div>
+                </div>
+                <p id="credit_message" style="margin-top: 10px;"></p>
+            </div>
+
+            <div class="bypass-section" id="bypassSection" style="display: none;">
+                <div class="checkbox-field">
+                    <input type="checkbox" id="bypass_credit_check" name="bypass_credit_check" onchange="toggleBypassReason()">
+                    <label for="bypass_credit_check">Bypass Credit Check (requires approval)</label>
+                </div>
+                <div class="form-field" id="bypassReasonField" style="display: none; margin-top: 10px;">
+                    <label for="bypass_reason">Bypass Reason <span class="required">*</span></label>
+                    <textarea id="bypass_reason" name="bypass_reason" rows="3" placeholder="Enter reason for bypassing credit check..."></textarea>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let creditData = null;
+
+        function loadSalesOrder() {
+            const salesOrder = document.getElementById('sales_order').value;
+            if (!salesOrder) {
+                document.getElementById('creditStatus').style.display = 'none';
+                document.getElementById('bypassSection').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/sales-orders/${salesOrder}/credit-check` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderCreditStatus(data) {
+            creditData = data;
+            const creditLimit = data.credit_limit || 0;
+            const outstanding = data.outstanding || 0;
+            const orderAmount = data.order_amount || data.grand_total || 0;
+            const newTotal = outstanding + orderAmount;
+            const availableCredit = creditLimit - newTotal;
+            const utilizationPercent = creditLimit > 0 ? (newTotal / creditLimit) * 100 : 0;
+
+            document.getElementById('customer_name').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('credit_limit').textContent = creditLimit.toLocaleString('ko-KR', {minimumFractionDigits: 2});
+            document.getElementById('outstanding').textContent = outstanding.toLocaleString('ko-KR', {minimumFractionDigits: 2});
+            document.getElementById('order_amount').textContent = orderAmount.toLocaleString('ko-KR', {minimumFractionDigits: 2});
+            document.getElementById('new_total').textContent = newTotal.toLocaleString('ko-KR', {minimumFractionDigits: 2});
+            document.getElementById('available_credit').textContent = availableCredit.toLocaleString('ko-KR', {minimumFractionDigits: 2});
+
+            const progressFill = document.getElementById('progress_fill');
+            progressFill.style.width = Math.min(utilizationPercent, 100) + '%';
+
+            const statusDiv = document.getElementById('creditStatus');
+            statusDiv.classList.remove('credit-pass', 'credit-fail', 'credit-warning');
+
+            if (availableCredit >= 0) {
+                statusDiv.classList.add('credit-pass');
+                progressFill.classList.remove('progress-warning', 'progress-danger');
+                progressFill.classList.add('progress-good');
+                document.getElementById('credit_title').textContent = 'Credit Check: PASSED';
+                document.getElementById('credit_message').textContent = 'Customer has sufficient credit for this order.';
+                document.getElementById('bypassSection').style.display = 'none';
+            } else {
+                statusDiv.classList.add('credit-fail');
+                progressFill.classList.remove('progress-good', 'progress-warning');
+                progressFill.classList.add('progress-danger');
+                document.getElementById('credit_title').textContent = 'Credit Check: FAILED';
+                document.getElementById('credit_message').textContent = `Order exceeds credit limit by ${Math.abs(availableCredit).toLocaleString('ko-KR', {minimumFractionDigits: 2})}`;
+                document.getElementById('bypassSection').style.display = 'block';
+            }
+
+            document.getElementById('creditStatus').style.display = 'block';
+        }
+
+        function toggleBypassReason() {
+            const bypassChecked = document.getElementById('bypass_credit_check').checked;
+            document.getElementById('bypassReasonField').style.display = bypassChecked ? 'block' : 'none';
+        }
+
+        function getTaskInput() {
+            return {
+                sales_order: document.getElementById('sales_order').value,
+                bypass_credit_check: document.getElementById('bypass_credit_check').checked,
+                bypass_reason: document.getElementById('bypass_reason').value || null
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.sales_order) { alert('Please select a sales order'); return false; }
+            if (data.bypass_credit_check && !data.bypass_reason) {
+                alert('Please provide a reason for bypassing credit check');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.credit_limit !== undefined || data.customer) {
+                renderCreditStatus(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('sales_order');
+                select.innerHTML = '<option value="">Select Sales Order</option>' +
+                    items.map(o => `<option value="${o.name}">${o.label || o.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

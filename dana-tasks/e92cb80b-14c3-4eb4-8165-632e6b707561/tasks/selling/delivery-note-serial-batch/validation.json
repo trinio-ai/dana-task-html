@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"delivery_note": {"type": "string", "minLength": 1}, "items": {"type": "array", "items": {"type": "object", "properties": {"item_code": {"type": "string"}, "serial_no": {"type": ["string", "null"]}, "batch_no": {"type": ["string", "null"]}}}}}, "required": ["delivery_note"]}

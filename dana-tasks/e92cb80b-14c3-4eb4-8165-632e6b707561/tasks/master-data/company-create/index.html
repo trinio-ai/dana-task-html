@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1f2937; background: #f9fafb; }
+        .form-container { padding: 16px; max-width: 800px; margin: 0 auto; }
+        .form-section { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .section-title { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+        .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 200px; margin-bottom: 12px; }
+        .form-group.full-width { flex: 100%; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 4px; color: #374151; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-group .required { color: #dc2626; margin-left: 2px; }
+        .form-group .helper-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .form-group.error input, .form-group.error select { border-color: #dc2626; }
+        .form-group .error-message { font-size: 12px; color: #dc2626; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-section">
+                <div class="section-title">Company Information</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="company_name">Company Name <span class="required">*</span></label>
+                        <input type="text" id="company_name" name="company_name" required placeholder="Enter company name">
+                    </div>
+                    <div class="form-group">
+                        <label for="company_abbr">Abbreviation <span class="required">*</span></label>
+                        <input type="text" id="company_abbr" name="company_abbr" required placeholder="e.g., ABC" maxlength="10">
+                        <div class="helper-text">Used in document numbering (2-10 characters)</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="default_currency">Default Currency <span class="required">*</span></label>
+                        <select id="default_currency" name="default_currency" required>
+                            <option value="">-- Select Currency --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="country">Country <span class="required">*</span></label>
+                        <select id="country" name="country" required>
+                            <option value="">-- Select Country --</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function getTaskInput() {
+            const form = document.getElementById('taskForm');
+            const formData = {};
+            form.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.name) {
+                    if (input.type === 'checkbox') {
+                        formData[input.name] = input.checked;
+                    } else {
+                        formData[input.name] = input.value;
+                    }
+                }
+            });
+            return formData;
+        }
+
+        function validateTaskInput() {
+            const errors = [];
+            const form = document.getElementById('taskForm');
+
+            form.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('error');
+                const errorMsg = group.querySelector('.error-message');
+                if (errorMsg) errorMsg.remove();
+            });
+
+            form.querySelectorAll('[required]').forEach(input => {
+                if (!input.value.trim()) {
+                    const group = input.closest('.form-group');
+                    if (group) {
+                        group.classList.add('error');
+                        const label = group.querySelector('label').textContent.replace('*', '').trim();
+                        errors.push(`${label} is required`);
+                    }
+                }
+            });
+
+            return { valid: errors.length === 0, errors };
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Populate dropdowns first if options provided
+            if (data.options) {
+                populateDropdowns(data.options);
+            }
+
+            // Then set form values
+            Object.keys(data).forEach(key => {
+                if (key === 'options') return;
+                const input = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = !!data[key];
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+        }
+
+        function populateDropdowns(options) {
+            // Populate currency dropdown
+            const currencySelect = document.getElementById('default_currency');
+            if (currencySelect && options.default_currency) {
+                while (currencySelect.options.length > 1) currencySelect.remove(1);
+                options.default_currency.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    currencySelect.appendChild(option);
+                });
+            }
+
+            // Populate country dropdown
+            const countrySelect = document.getElementById('country');
+            if (countrySelect && options.country) {
+                while (countrySelect.options.length > 1) countrySelect.remove(1);
+                options.country.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    countrySelect.appendChild(option);
+                });
+            }
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            const taskData = window.TASK_DATA || {};
+            if (taskData.options) {
+                populateDropdowns(taskData.options);
+            }
+        });
+
+        // Expose functions
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateTaskInput;
+    </script>
+</body>
+</html>

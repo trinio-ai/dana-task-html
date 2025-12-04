@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .credit-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .info-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
+        .info-value { font-size: 24px; font-weight: bold; }
+        .info-label { font-size: 12px; color: #666; }
+        .utilization-bar { height: 10px; background: #e9ecef; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+        .utilization-fill { height: 100%; transition: width 0.3s; }
+        .utilization-low { background: #28a745; }
+        .utilization-medium { background: #ffc107; }
+        .utilization-high { background: #dc3545; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .preview-section { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #c3e6cb; }
+        .change-positive { color: #28a745; }
+        .change-negative { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="customer">Select Customer <span class="required">*</span></label>
+                <select id="customer" name="customer" required onchange="loadCustomerCredit()"
+                        data-fetch-endpoint="/api/erp/selling/customers">
+                    <option value="">Select Customer</option>
+                </select>
+            </div>
+
+            <div class="credit-info" id="creditInfo" style="display: none;">
+                <h4 id="customer_name">Customer Name</h4>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="info-value" id="current_limit">0</div>
+                        <div class="info-label">Current Credit Limit</div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-value" id="outstanding">0</div>
+                        <div class="info-label">Current Outstanding</div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-value" id="available">0</div>
+                        <div class="info-label">Available Credit</div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-value" id="utilization">0%</div>
+                        <div class="info-label">Credit Utilization</div>
+                        <div class="utilization-bar">
+                            <div class="utilization-fill" id="utilization_bar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="new_credit_limit">New Credit Limit <span class="required">*</span></label>
+                        <input type="number" id="new_credit_limit" name="new_credit_limit" min="0" step="1000" required
+                               onchange="updatePreview()">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="adjustment_type">Adjustment Type</label>
+                        <select id="adjustment_type" name="adjustment_type" onchange="applyAdjustmentType()">
+                            <option value="set">Set to specific amount</option>
+                            <option value="increase">Increase by amount</option>
+                            <option value="decrease">Decrease by amount</option>
+                            <option value="percent_increase">Increase by percentage</option>
+                            <option value="percent_decrease">Decrease by percentage</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="preview-section" id="previewSection" style="display: none;">
+                <h4>Credit Limit Change Preview</h4>
+                <div class="row">
+                    <div class="col">
+                        <div>Current: <span id="preview_current">0</span></div>
+                    </div>
+                    <div class="col">
+                        <div>New: <strong id="preview_new">0</strong></div>
+                    </div>
+                    <div class="col">
+                        <div>Change: <span id="preview_change">0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="reason">Reason for Adjustment <span class="required">*</span></label>
+                <textarea id="reason" name="reason" rows="3" required placeholder="Please provide the reason for this credit limit adjustment..."></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentCredit = { limit: 0, outstanding: 0 };
+
+        function loadCustomerCredit() {
+            const customer = document.getElementById('customer').value;
+            if (!customer) {
+                document.getElementById('creditInfo').style.display = 'none';
+                document.getElementById('previewSection').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/customers/${customer}/credit` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderCreditInfo(data) {
+            currentCredit.limit = data.credit_limit || 0;
+            currentCredit.outstanding = data.outstanding || 0;
+            const available = currentCredit.limit - currentCredit.outstanding;
+            const utilization = currentCredit.limit > 0 ? (currentCredit.outstanding / currentCredit.limit) * 100 : 0;
+
+            document.getElementById('customer_name').textContent = data.customer_name || data.customer || 'Customer';
+            document.getElementById('current_limit').textContent = currentCredit.limit.toLocaleString('ko-KR');
+            document.getElementById('outstanding').textContent = currentCredit.outstanding.toLocaleString('ko-KR');
+            document.getElementById('available').textContent = available.toLocaleString('ko-KR');
+            document.getElementById('utilization').textContent = utilization.toFixed(1) + '%';
+
+            const bar = document.getElementById('utilization_bar');
+            bar.style.width = Math.min(utilization, 100) + '%';
+            bar.className = 'utilization-fill ' + (utilization < 50 ? 'utilization-low' : utilization < 80 ? 'utilization-medium' : 'utilization-high');
+
+            document.getElementById('new_credit_limit').value = currentCredit.limit;
+            document.getElementById('creditInfo').style.display = 'block';
+            updatePreview();
+        }
+
+        function applyAdjustmentType() {
+            const type = document.getElementById('adjustment_type').value;
+            const input = document.getElementById('new_credit_limit');
+
+            switch(type) {
+                case 'set':
+                    input.value = currentCredit.limit;
+                    break;
+                case 'increase':
+                case 'decrease':
+                    input.value = 0;
+                    input.placeholder = 'Enter amount';
+                    break;
+                case 'percent_increase':
+                case 'percent_decrease':
+                    input.value = 10;
+                    input.placeholder = 'Enter percentage';
+                    break;
+            }
+            updatePreview();
+        }
+
+        function updatePreview() {
+            const type = document.getElementById('adjustment_type').value;
+            const value = parseFloat(document.getElementById('new_credit_limit').value) || 0;
+            let newLimit = currentCredit.limit;
+
+            switch(type) {
+                case 'set':
+                    newLimit = value;
+                    break;
+                case 'increase':
+                    newLimit = currentCredit.limit + value;
+                    break;
+                case 'decrease':
+                    newLimit = Math.max(0, currentCredit.limit - value);
+                    break;
+                case 'percent_increase':
+                    newLimit = currentCredit.limit * (1 + value / 100);
+                    break;
+                case 'percent_decrease':
+                    newLimit = currentCredit.limit * (1 - value / 100);
+                    break;
+            }
+
+            const change = newLimit - currentCredit.limit;
+
+            document.getElementById('preview_current').textContent = currentCredit.limit.toLocaleString('ko-KR');
+            document.getElementById('preview_new').textContent = newLimit.toLocaleString('ko-KR');
+
+            const changeSpan = document.getElementById('preview_change');
+            changeSpan.textContent = (change >= 0 ? '+' : '') + change.toLocaleString('ko-KR');
+            changeSpan.className = change >= 0 ? 'change-positive' : 'change-negative';
+
+            document.getElementById('previewSection').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            const type = document.getElementById('adjustment_type').value;
+            const value = parseFloat(document.getElementById('new_credit_limit').value) || 0;
+            let newLimit = currentCredit.limit;
+
+            switch(type) {
+                case 'set': newLimit = value; break;
+                case 'increase': newLimit = currentCredit.limit + value; break;
+                case 'decrease': newLimit = Math.max(0, currentCredit.limit - value); break;
+                case 'percent_increase': newLimit = currentCredit.limit * (1 + value / 100); break;
+                case 'percent_decrease': newLimit = currentCredit.limit * (1 - value / 100); break;
+            }
+
+            return {
+                customer: document.getElementById('customer').value,
+                new_credit_limit: newLimit,
+                reason: document.getElementById('reason').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.customer) { alert('Please select a customer'); return false; }
+            if (data.new_credit_limit < 0) { alert('Credit limit cannot be negative'); return false; }
+            if (!data.reason.trim()) { alert('Please provide a reason for the adjustment'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.credit_limit !== undefined) {
+                renderCreditInfo(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('customer');
+                select.innerHTML = '<option value="">Select Customer</option>' +
+                    items.map(c => `<option value="${c.name}">${c.label || c.customer_name || c.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

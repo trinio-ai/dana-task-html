@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"supplier_name": {"type": "string"}, "supplier_group": {"type": "string"}, "payment_terms": {"type": "string"}}, "required": ["supplier_name", "supplier_group"]}

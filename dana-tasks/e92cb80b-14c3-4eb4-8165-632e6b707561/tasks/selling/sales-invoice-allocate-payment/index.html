@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .invoice-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .outstanding { color: #dc3545; font-weight: bold; }
+        .payment-info { background: #e8f5e9; border: 1px solid #4caf50; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_invoice">Sales Invoice <span class="required">*</span></label>
+                <select id="sales_invoice" name="sales_invoice" required data-fetch-endpoint="/api/erp/sales-invoices?docstatus=1&outstanding_amount>0">
+                    <option value="">Select Invoice with Outstanding Amount</option>
+                </select>
+            </div>
+
+            <div id="invoiceInfo" class="invoice-info" style="display: none;">
+                <h4>Invoice Details</h4>
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Invoice Date:</span>
+                    <span id="posting_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Grand Total:</span>
+                    <span id="grand_total">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Paid Amount:</span>
+                    <span id="paid_amount">0.00</span>
+                </div>
+                <div class="info-row outstanding">
+                    <span>Outstanding Amount:</span>
+                    <span id="outstanding_amount">0.00</span>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="payment_entry">Payment Entry <span class="required">*</span></label>
+                <select id="payment_entry" name="payment_entry" required data-fetch-endpoint="/api/erp/payment-entries?payment_type=Receive&unallocated_amount>0">
+                    <option value="">Select Payment with Unallocated Amount</option>
+                </select>
+            </div>
+
+            <div id="paymentInfo" class="payment-info" style="display: none;">
+                <h4>Payment Details</h4>
+                <div class="info-row">
+                    <span>Payment Date:</span>
+                    <span id="payment_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Total Amount:</span>
+                    <span id="payment_amount">0.00</span>
+                </div>
+                <div class="info-row">
+                    <span>Unallocated Amount:</span>
+                    <span id="unallocated_amount">0.00</span>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="allocated_amount">Amount to Allocate <span class="required">*</span></label>
+                <input type="number" id="allocated_amount" name="allocated_amount" min="0" step="0.01" required>
+                <small class="help-text">Enter the amount to allocate to this invoice</small>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let outstandingAmount = 0;
+        let unallocatedAmount = 0;
+
+        function updateMaxAllocation() {
+            const maxAlloc = Math.min(outstandingAmount, unallocatedAmount);
+            const input = document.getElementById('allocated_amount');
+            input.max = maxAlloc;
+            input.value = maxAlloc;
+        }
+
+        function getTaskInput() {
+            return {
+                sales_invoice: document.getElementById('sales_invoice').value,
+                payment_entry: document.getElementById('payment_entry').value,
+                allocated_amount: parseFloat(document.getElementById('allocated_amount').value) || 0
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('sales_invoice').value) {
+                alert('Please select an invoice');
+                return false;
+            }
+            if (!document.getElementById('payment_entry').value) {
+                alert('Please select a payment');
+                return false;
+            }
+            const amount = parseFloat(document.getElementById('allocated_amount').value) || 0;
+            if (amount <= 0) {
+                alert('Please enter a valid allocation amount');
+                return false;
+            }
+            if (amount > outstandingAmount) {
+                alert('Allocation amount cannot exceed outstanding amount');
+                return false;
+            }
+            if (amount > unallocatedAmount) {
+                alert('Allocation amount cannot exceed unallocated payment amount');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+
+            // Invoice info
+            if (data.sales_invoice) document.getElementById('sales_invoice').value = data.sales_invoice;
+            if (data.customer) {
+                document.getElementById('customer').textContent = data.customer_name || data.customer;
+                document.getElementById('posting_date').textContent = data.posting_date || '-';
+                document.getElementById('grand_total').textContent = (data.grand_total || 0).toFixed(2);
+                document.getElementById('paid_amount').textContent = (data.paid_amount || 0).toFixed(2);
+                outstandingAmount = data.outstanding_amount || 0;
+                document.getElementById('outstanding_amount').textContent = outstandingAmount.toFixed(2);
+                document.getElementById('invoiceInfo').style.display = 'block';
+            }
+
+            // Payment info
+            if (data.payment_entry) document.getElementById('payment_entry').value = data.payment_entry;
+            if (data.payment_date) {
+                document.getElementById('payment_date').textContent = data.payment_date;
+                document.getElementById('payment_amount').textContent = (data.paid_amount_payment || data.payment_total || 0).toFixed(2);
+                unallocatedAmount = data.unallocated_amount || 0;
+                document.getElementById('unallocated_amount').textContent = unallocatedAmount.toFixed(2);
+                document.getElementById('paymentInfo').style.display = 'block';
+                updateMaxAllocation();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

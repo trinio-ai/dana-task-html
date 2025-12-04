@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .items-table th { background: #f5f5f5; }
+        .items-table input, .items-table select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; }
+        .add-row-btn { background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .remove-row-btn { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        .total-row { font-weight: bold; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="supplier">Supplier <span class="required">*</span></label>
+                    <select id="supplier" name="supplier" required
+                            data-fetch-endpoint="/api/erp/buying/suppliers?disabled=0">
+                        <option value="">Select Supplier</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="rfq">From RFQ</label>
+                    <select id="rfq" name="rfq" onchange="loadRFQItems()"
+                            data-fetch-endpoint="/api/erp/buying/rfq?docstatus=1">
+                        <option value="">Select RFQ (optional)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="quotation_number">Supplier Quotation Number</label>
+                    <input type="text" id="quotation_number" name="quotation_number" placeholder="Supplier's reference number">
+                </div>
+                <div class="form-field">
+                    <label for="valid_till">Valid Till</label>
+                    <input type="date" id="valid_till" name="valid_till">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <h4>Items <span class="required">*</span></h4>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="3">Total</td>
+                            <td id="totalAmount">0.00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <button type="button" class="add-row-btn" onclick="addItemRow()">+ Add Item</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let itemOptions = [];
+        let uomOptions = [];
+        let rowCount = 0;
+
+        function addItemRow(data = {}) {
+            rowCount++;
+            const tbody = document.getElementById('itemsBody');
+            const row = document.createElement('tr');
+            row.id = `item-row-${rowCount}`;
+            row.innerHTML = `
+                <td>
+                    <select name="item_code_${rowCount}" required>
+                        <option value="">Select Item</option>
+                        ${itemOptions.map(i => `<option value="${i.value}" ${i.value === data.item_code ? 'selected' : ''}>${i.label}</option>`).join('')}
+                    </select>
+                </td>
+                <td><input type="number" name="qty_${rowCount}" value="${data.qty || 1}" min="0.001" step="0.001" required onchange="calculateRow(${rowCount})"></td>
+                <td><input type="number" name="rate_${rowCount}" value="${data.rate || 0}" min="0" step="0.01" required onchange="calculateRow(${rowCount})"></td>
+                <td><span id="amount_${rowCount}">${((data.qty || 1) * (data.rate || 0)).toFixed(2)}</span></td>
+                <td><button type="button" class="remove-row-btn" onclick="removeRow(${rowCount})">X</button></td>
+            `;
+            tbody.appendChild(row);
+            calculateTotal();
+        }
+
+        function removeRow(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (row) row.remove();
+            calculateTotal();
+        }
+
+        function calculateRow(id) {
+            const qty = parseFloat(document.querySelector(`input[name="qty_${id}"]`).value) || 0;
+            const rate = parseFloat(document.querySelector(`input[name="rate_${id}"]`).value) || 0;
+            document.getElementById(`amount_${id}`).textContent = (qty * rate).toFixed(2);
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const amountSpan = row.querySelector('span[id^="amount_"]');
+                if (amountSpan) total += parseFloat(amountSpan.textContent) || 0;
+            });
+            document.getElementById('totalAmount').textContent = total.toFixed(2);
+        }
+
+        function loadRFQItems() {
+            const rfqId = document.getElementById('rfq').value;
+            if (!rfqId) return;
+
+            const msg = {
+                type: 'fetchData',
+                endpoint: `/api/v1/erp/buying/rfq/${rfqId}`
+            };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderRFQItems(data) {
+            document.getElementById('itemsBody').innerHTML = '';
+            (data.items || []).forEach(item => {
+                addItemRow({
+                    item_code: item.item_code,
+                    qty: item.qty,
+                    rate: 0
+                });
+            });
+        }
+
+        function getTaskInput() {
+            const items = [];
+            document.querySelectorAll('#itemsBody tr').forEach(row => {
+                const itemSelect = row.querySelector('select[name^="item_code_"]');
+                const qtyInput = row.querySelector('input[name^="qty_"]');
+                const rateInput = row.querySelector('input[name^="rate_"]');
+                if (itemSelect && itemSelect.value) {
+                    items.push({
+                        item_code: itemSelect.value,
+                        qty: parseFloat(qtyInput.value) || 1,
+                        rate: parseFloat(rateInput.value) || 0
+                    });
+                }
+            });
+
+            return {
+                supplier: document.getElementById('supplier').value,
+                rfq: document.getElementById('rfq').value || null,
+                quotation_number: document.getElementById('quotation_number').value || null,
+                valid_till: document.getElementById('valid_till').value || null,
+                items: items
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.supplier) { alert('Please select a supplier'); return false; }
+            if (data.items.length === 0) { alert('Please add at least one item'); return false; }
+            for (const item of data.items) {
+                if (item.rate <= 0) { alert('Please enter a valid rate for all items'); return false; }
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.options) {
+                if (data.options.item) itemOptions = data.options.item;
+                if (data.options.uom) uomOptions = data.options.uom;
+            }
+            if (data.items) {
+                renderRFQItems(data);
+            } else if (document.querySelectorAll('#itemsBody tr').length === 0) {
+                addItemRow();
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"quotation": {"type": "string", "minLength": 1}, "delivery_date": {"type": ["string", "null"], "format": "date"}}, "required": ["quotation"]}

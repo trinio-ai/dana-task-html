@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .source-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; }
+        .splits-container { margin-top: 15px; }
+        .split-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .split-row input { flex: 1; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-add { background: #007bff; color: white; }
+        .btn-remove { background: #dc3545; color: white; padding: 8px 12px; }
+        .summary { margin-top: 15px; padding: 10px; background: #e9ecef; border-radius: 4px; }
+        .error { color: #dc3545; }
+        .remaining { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="source_batch">Source Batch <span class="required">*</span></label>
+                        <select id="source_batch" name="source_batch" required onchange="loadBatch()"
+                                data-fetch-endpoint="/api/erp/inventory/batches">
+                            <option value="">Select Batch</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label for="warehouse">Warehouse <span class="required">*</span></label>
+                        <select id="warehouse" name="warehouse" required
+                                data-fetch-endpoint="/api/erp/warehouses">
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="source-info" id="sourceInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Item:</span>
+                    <span id="info_item">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Available Qty:</span>
+                    <span id="info_qty">0</span>
+                </div>
+                <div class="info-row">
+                    <span>Expiry Date:</span>
+                    <span id="info_expiry">-</span>
+                </div>
+            </div>
+
+            <div class="splits-container" id="splitsContainer" style="display: none;">
+                <label>Split Into <span class="required">*</span></label>
+                <div id="splitRows"></div>
+                <button type="button" class="btn btn-add" onclick="addSplit()">+ Add Split</button>
+
+                <div class="summary">
+                    <div class="info-row">
+                        <span>Total Allocated:</span>
+                        <span id="total_allocated">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Remaining:</span>
+                        <span id="remaining" class="remaining">0</span>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let sourceBatch = null;
+        let splitCount = 0;
+
+        function loadBatch() {
+            const batchId = document.getElementById('source_batch').value;
+            if (!batchId) {
+                document.getElementById('sourceInfo').style.display = 'none';
+                document.getElementById('splitsContainer').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/batch/${batchId}` }, '*');
+        }
+
+        function renderBatch(data) {
+            sourceBatch = data;
+            document.getElementById('info_item').textContent = data.item || '-';
+            document.getElementById('info_qty').textContent = (data.batch_qty || 0).toLocaleString();
+            document.getElementById('info_expiry').textContent = data.expiry_date || '-';
+
+            document.getElementById('sourceInfo').style.display = 'block';
+            document.getElementById('splitsContainer').style.display = 'block';
+
+            // Reset splits
+            document.getElementById('splitRows').innerHTML = '';
+            splitCount = 0;
+            addSplit();
+            addSplit();
+            updateSummary();
+        }
+
+        function addSplit() {
+            const idx = splitCount++;
+            const div = document.createElement('div');
+            div.className = 'split-row';
+            div.id = `split_${idx}`;
+            div.innerHTML = `
+                <input type="text" placeholder="New Batch ID" id="batch_id_${idx}" required>
+                <input type="number" placeholder="Quantity" id="qty_${idx}" min="0.001" step="0.001" oninput="updateSummary()">
+                <button type="button" class="btn btn-remove" onclick="removeSplit(${idx})">×</button>
+            `;
+            document.getElementById('splitRows').appendChild(div);
+        }
+
+        function removeSplit(idx) {
+            const row = document.getElementById(`split_${idx}`);
+            if (row) {
+                row.remove();
+                updateSummary();
+            }
+        }
+
+        function updateSummary() {
+            let total = 0;
+            document.querySelectorAll('[id^="qty_"]').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+
+            const available = sourceBatch ? (sourceBatch.batch_qty || 0) : 0;
+            const remaining = available - total;
+
+            document.getElementById('total_allocated').textContent = total.toLocaleString();
+            document.getElementById('remaining').textContent = remaining.toLocaleString();
+            document.getElementById('remaining').className = remaining < 0 ? 'remaining error' : 'remaining';
+        }
+
+        function getTaskInput() {
+            const splits = [];
+            document.querySelectorAll('.split-row').forEach(row => {
+                const idx = row.id.split('_')[1];
+                const batchId = document.getElementById(`batch_id_${idx}`)?.value;
+                const qty = parseFloat(document.getElementById(`qty_${idx}`)?.value) || 0;
+                if (batchId && qty > 0) {
+                    splits.push({ batch_id: batchId, qty: qty });
+                }
+            });
+
+            return {
+                source_batch: document.getElementById('source_batch').value,
+                warehouse: document.getElementById('warehouse').value,
+                splits: splits
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('source_batch').value) {
+                alert('Please select a source batch');
+                return false;
+            }
+            if (!document.getElementById('warehouse').value) {
+                alert('Please select a warehouse');
+                return false;
+            }
+            const input = getTaskInput();
+            if (input.splits.length < 2) {
+                alert('Please add at least 2 splits');
+                return false;
+            }
+            const total = input.splits.reduce((sum, s) => sum + s.qty, 0);
+            const available = sourceBatch ? (sourceBatch.batch_qty || 0) : 0;
+            if (total > available) {
+                alert('Total split quantity exceeds available quantity');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.item !== undefined || data.batch_qty !== undefined) {
+                renderBatch(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

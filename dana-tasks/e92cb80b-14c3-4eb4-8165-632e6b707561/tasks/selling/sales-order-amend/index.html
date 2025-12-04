@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .order-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .warning-box { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #ffc107; }
+        .warning-box h4 { margin: 0 0 10px 0; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="sales_order">Select Sales Order to Amend <span class="required">*</span></label>
+                <select id="sales_order" name="sales_order" required onchange="loadSalesOrder()"
+                        data-fetch-endpoint="/api/erp/selling/sales-orders?docstatus=1">
+                    <option value="">Select Sales Order</option>
+                </select>
+            </div>
+
+            <div class="order-info" id="orderInfo" style="display: none;">
+                <h4>Current Order Details</h4>
+                <div class="info-row">
+                    <span>Customer:</span>
+                    <span id="info_customer">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Order Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Grand Total:</span>
+                    <span id="info_total">-</span>
+                </div>
+                <div class="info-row">
+                    <span>% Delivered:</span>
+                    <span id="info_delivered">-</span>
+                </div>
+                <div class="info-row">
+                    <span>% Billed:</span>
+                    <span id="info_billed">-</span>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <h4>Amend Action</h4>
+                <p>Amending this sales order will:</p>
+                <ul>
+                    <li>Cancel the current sales order</li>
+                    <li>Create a new draft copy that you can edit</li>
+                    <li>Link the new order to the original for tracking</li>
+                </ul>
+                <p><strong>Note:</strong> Orders with deliveries or invoices may require additional adjustments.</p>
+            </div>
+
+            <div class="form-field">
+                <label for="reason">Reason for Amendment <span class="required">*</span></label>
+                <textarea id="reason" name="reason" rows="3" required placeholder="Please provide the reason for amending this order..."></textarea>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadSalesOrder() {
+            const salesOrder = document.getElementById('sales_order').value;
+            if (!salesOrder) {
+                document.getElementById('orderInfo').style.display = 'none';
+                return;
+            }
+            const msg = { type: 'fetchData', endpoint: `/api/v1/erp/selling/sales-orders/${salesOrder}` };
+            window.parent.postMessage(msg, '*');
+        }
+
+        function renderOrder(data) {
+            document.getElementById('info_customer').textContent = data.customer_name || data.customer || '-';
+            document.getElementById('info_date').textContent = data.transaction_date || '-';
+            document.getElementById('info_total').textContent = (data.grand_total || 0).toFixed(2);
+            document.getElementById('info_delivered').textContent = (data.per_delivered || 0).toFixed(1) + '%';
+            document.getElementById('info_billed').textContent = (data.per_billed || 0).toFixed(1) + '%';
+            document.getElementById('orderInfo').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return {
+                sales_order: document.getElementById('sales_order').value,
+                reason: document.getElementById('reason').value
+            };
+        }
+
+        function validateForm() {
+            const data = getTaskInput();
+            if (!data.sales_order) { alert('Please select a sales order'); return false; }
+            if (!data.reason.trim()) { alert('Please provide a reason for amendment'); return false; }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.sales_order || data.name) {
+                renderOrder(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('sales_order');
+                select.innerHTML = '<option value="">Select Sales Order</option>' +
+                    items.map(o => `<option value="${o.name}">${o.label || o.name}</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

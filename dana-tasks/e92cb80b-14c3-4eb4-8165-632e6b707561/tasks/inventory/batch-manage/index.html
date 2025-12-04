@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field input, .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .batch-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .info-row:last-child { border-bottom: none; }
+        .checkbox-field { display: flex; align-items: center; gap: 8px; }
+        .checkbox-field input { width: auto; }
+        .warning { background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="batch_select">Select Batch <span class="required">*</span></label>
+                <select id="batch_select" name="batch_select" required onchange="loadBatch()"
+                        data-fetch-endpoint="/api/erp/inventory/batches">
+                    <option value="">Select Batch</option>
+                </select>
+            </div>
+
+            <div class="batch-info" id="batchInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Batch ID:</span>
+                    <span id="info_batch_id">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Item:</span>
+                    <span id="info_item">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Manufacturing Date:</span>
+                    <span id="info_mfg_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Current Qty:</span>
+                    <span id="info_qty">-</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-field">
+                        <label for="expiry_date">Expiry Date</label>
+                        <input type="date" id="expiry_date" name="expiry_date">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-field">
+                        <label>Status</label>
+                        <div class="checkbox-field">
+                            <input type="checkbox" id="disabled" name="disabled">
+                            <label for="disabled" style="font-weight: normal;">Disable this batch</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning" id="disableWarning" style="display: none;">
+                <strong>Note:</strong> Disabling a batch will prevent it from being used in new transactions.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentBatch = null;
+
+        function loadBatch() {
+            const batchId = document.getElementById('batch_select').value;
+            if (!batchId) {
+                document.getElementById('batchInfo').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/batch/${batchId}` }, '*');
+        }
+
+        function renderBatch(data) {
+            currentBatch = data;
+            document.getElementById('info_batch_id').textContent = data.batch_id || '-';
+            document.getElementById('info_item').textContent = data.item || '-';
+            document.getElementById('info_mfg_date').textContent = data.manufacturing_date || '-';
+            document.getElementById('info_qty').textContent = (data.batch_qty || 0).toLocaleString();
+
+            if (data.expiry_date) document.getElementById('expiry_date').value = data.expiry_date;
+            document.getElementById('disabled').checked = data.disabled || false;
+
+            document.getElementById('batchInfo').style.display = 'block';
+        }
+
+        document.getElementById('disabled').addEventListener('change', function() {
+            document.getElementById('disableWarning').style.display = this.checked ? 'block' : 'none';
+        });
+
+        function getTaskInput() {
+            return {
+                batch_id: document.getElementById('batch_select').value,
+                expiry_date: document.getElementById('expiry_date').value || null,
+                disabled: document.getElementById('disabled').checked
+            };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('batch_select').value) {
+                alert('Please select a batch');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.batch_id !== undefined) {
+                renderBatch(data);
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

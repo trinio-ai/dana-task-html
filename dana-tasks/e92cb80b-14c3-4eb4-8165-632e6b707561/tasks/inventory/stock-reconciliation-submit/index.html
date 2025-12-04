@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .form-field { margin-bottom: 15px; }
+        .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .required { color: red; }
+        .reconciliation-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .items-summary { margin-top: 15px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .summary-item { text-align: center; padding: 10px; background: #fff; border-radius: 4px; }
+        .summary-value { font-size: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <form id="taskForm">
+            <div class="form-field">
+                <label for="reconciliation_id">Select Reconciliation <span class="required">*</span></label>
+                <select id="reconciliation_id" name="reconciliation_id" required onchange="loadReconciliation()"
+                        data-fetch-endpoint="/api/erp/inventory/stock-reconciliations?docstatus=0">
+                    <option value="">Select Approved Reconciliation</option>
+                </select>
+            </div>
+
+            <div class="reconciliation-info" id="reconciliationInfo" style="display: none;">
+                <div class="info-row">
+                    <span>Posting Date:</span>
+                    <span id="info_date">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Purpose:</span>
+                    <span id="info_purpose">-</span>
+                </div>
+
+                <div class="items-summary">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-value" id="info_total">0</div>
+                            <div>Total Items</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-value" id="info_surplus">0</div>
+                            <div>Surplus</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-value" id="info_shortage">0</div>
+                            <div>Shortage</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning" id="submitWarning" style="display: none;">
+                <strong>Warning:</strong> Submitting this reconciliation will permanently adjust stock levels.
+                This action cannot be undone. Ensure all variances have been reviewed and approved.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function loadReconciliation() {
+            const id = document.getElementById('reconciliation_id').value;
+            if (!id) {
+                document.getElementById('reconciliationInfo').style.display = 'none';
+                document.getElementById('submitWarning').style.display = 'none';
+                return;
+            }
+            window.parent.postMessage({ type: 'fetchData', endpoint: `/api/v1/erp/inventory/stock-reconciliations/${id}` }, '*');
+        }
+
+        function renderReconciliation(data) {
+            document.getElementById('info_date').textContent = data.posting_date || '-';
+            document.getElementById('info_purpose').textContent = data.purpose || '-';
+
+            const items = data.items || [];
+            let surplus = 0, shortage = 0;
+            items.forEach(item => {
+                const diff = (item.qty || 0) - (item.current_qty || 0);
+                if (diff > 0) surplus++;
+                else if (diff < 0) shortage++;
+            });
+
+            document.getElementById('info_total').textContent = items.length;
+            document.getElementById('info_surplus').textContent = surplus;
+            document.getElementById('info_shortage').textContent = shortage;
+
+            document.getElementById('reconciliationInfo').style.display = 'block';
+            document.getElementById('submitWarning').style.display = 'block';
+        }
+
+        function getTaskInput() {
+            return { reconciliation_id: document.getElementById('reconciliation_id').value };
+        }
+
+        function validateForm() {
+            if (!document.getElementById('reconciliation_id').value) {
+                alert('Please select a reconciliation');
+                return false;
+            }
+            return true;
+        }
+
+        function setTaskInput(data) {
+            if (!data) return;
+            if (data.posting_date !== undefined) {
+                renderReconciliation(data);
+            } else if (Array.isArray(data) || data.data) {
+                const items = Array.isArray(data) ? data : data.data;
+                const select = document.getElementById('reconciliation_id');
+                select.innerHTML = '<option value="">Select Approved Reconciliation</option>' +
+                    items.map(r => `<option value="${r.name}">${r.name} (${r.posting_date})</option>`).join('');
+            }
+        }
+
+        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        window.getTaskInput = getTaskInput;
+        window.setTaskInput = setTaskInput;
+        window.validateTaskInput = validateForm;
+    </script>
+</body>
+</html>

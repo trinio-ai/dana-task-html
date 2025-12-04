@@ -1,0 +1,1 @@
+{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"customer": {"type": "string", "minLength": 1}, "order_amount": {"type": "number", "minimum": 0}, "include_pending_orders": {"type": "boolean"}, "show_payment_history": {"type": "boolean"}}, "required": ["customer"]}

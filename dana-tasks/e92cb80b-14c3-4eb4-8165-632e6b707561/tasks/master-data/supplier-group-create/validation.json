@@ -1,0 +1,1 @@
+{"type": "object", "properties": {"supplier_group_name": {"type": "string", "minLength": 1}, "parent_group": {"type": ["string", "null"]}}, "required": ["supplier_group_name"]}
