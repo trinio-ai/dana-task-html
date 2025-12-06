@@ -568,11 +568,52 @@
     <script>
         document.getElementById('posting_date').valueAsDate = new Date();
 
+        // Store account options for dynamic switching
+        let accountOptions = {
+            bank_cash_account: [],
+            receivable_account: [],
+            payable_account: []
+        };
+
         document.getElementById('party_type').addEventListener('change', function() {
             const isCustomer = this.value === 'Customer';
             document.getElementById('customerField').style.display = isCustomer ? 'block' : 'none';
             document.getElementById('supplierField').style.display = !isCustomer && this.value ? 'block' : 'none';
         });
+
+        // Update account dropdowns based on payment type
+        document.getElementById('payment_type').addEventListener('change', function() {
+            updateAccountDropdowns(this.value);
+        });
+
+        function updateAccountDropdowns(paymentType) {
+            const paidFromSelect = document.getElementById('paid_from');
+            const paidToSelect = document.getElementById('paid_to');
+
+            // Clear existing options
+            paidFromSelect.innerHTML = '<option value="">Select Account</option>';
+            paidToSelect.innerHTML = '<option value="">Select Account</option>';
+
+            if (paymentType === 'Receive') {
+                // Receive: paid_from = Receivable, paid_to = Bank/Cash
+                populateSelect(paidFromSelect, accountOptions.receivable_account);
+                populateSelect(paidToSelect, accountOptions.bank_cash_account);
+            } else if (paymentType === 'Pay') {
+                // Pay: paid_from = Bank/Cash, paid_to = Payable
+                populateSelect(paidFromSelect, accountOptions.bank_cash_account);
+                populateSelect(paidToSelect, accountOptions.payable_account);
+            }
+        }
+
+        function populateSelect(selectElement, options) {
+            if (!options) return;
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.label;
+                selectElement.appendChild(option);
+            });
+        }
 
         function getTaskInput() {
             const partyType = document.getElementById('party_type').value;
@@ -606,7 +647,16 @@
         function setTaskInput(data) {
             if (!data) return;
             if (data.options) {
-                // Populate dropdowns from defaults
+                // Store account options for dynamic switching
+                accountOptions.bank_cash_account = data.options.bank_cash_account || [];
+                accountOptions.receivable_account = data.options.receivable_account || [];
+                accountOptions.payable_account = data.options.payable_account || [];
+
+                // Update dropdowns if payment_type is already selected
+                const paymentType = document.getElementById('payment_type').value;
+                if (paymentType) {
+                    updateAccountDropdowns(paymentType);
+                }
             }
             if (data.defaults) {
                 if (data.defaults.posting_date) document.getElementById('posting_date').value = data.defaults.posting_date;

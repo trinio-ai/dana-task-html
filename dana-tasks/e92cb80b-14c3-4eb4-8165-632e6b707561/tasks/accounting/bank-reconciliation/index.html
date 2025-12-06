@@ -569,13 +569,8 @@
     </div>
 
     <script>
-        // Set default dates
-        const today = new Date();
-        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('from_date').valueAsDate = firstOfMonth;
-        document.getElementById('to_date').valueAsDate = today;
-
         let entries = [];
+        let pendingRequestId = null;
 
         function toggleAll(checkbox) {
             document.querySelectorAll('#entriesBody input[type="checkbox"]').forEach(cb => {
@@ -585,14 +580,92 @@
         }
 
         function loadEntries() {
-            // In real implementation, this would trigger a fetch
-            // For now, we rely on setTaskInput to populate
-            const msg = { type: 'fetchData', filters: {
-                bank_account: document.getElementById('bank_account').value,
-                from_date: document.getElementById('from_date').value,
-                to_date: document.getElementById('to_date').value
-            }};
+            const bankAccount = document.getElementById('bank_account').value;
+            if (!bankAccount) {
+                alert('Please select a bank account');
+                return;
+            }
+
+            // Generate unique request ID
+            pendingRequestId = 'fetch_' + Date.now();
+
+            // Send TASK_IFRAME_FETCH_DATA message to parent
+            const msg = {
+                type: 'TASK_IFRAME_FETCH_DATA',
+                requestId: pendingRequestId,
+                payload: {
+                    bank_account: bankAccount,
+                    from_date: document.getElementById('from_date').value,
+                    to_date: document.getElementById('to_date').value
+                }
+            };
             window.parent.postMessage(msg, '*');
+
+            // Show loading state
+            document.getElementById('entriesBody').innerHTML = '<tr><td colspan="8">Loading entries...</td></tr>';
+        }
+
+        function handleFetchResponse(data) {
+            if (!data) return;
+
+            // Populate bank account dropdown if options provided
+            if (data.options && data.options.bank_account) {
+                const select = document.getElementById('bank_account');
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Select Bank Account</option>';
+                data.options.bank_account.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    select.appendChild(option);
+                });
+                if (currentValue) select.value = currentValue;
+            }
+
+            // Set default dates if provided
+            if (data.defaults) {
+                if (data.defaults.from_date && !document.getElementById('from_date').value) {
+                    document.getElementById('from_date').value = data.defaults.from_date;
+                }
+                if (data.defaults.to_date && !document.getElementById('to_date').value) {
+                    document.getElementById('to_date').value = data.defaults.to_date;
+                }
+            }
+
+            // Handle opening balance
+            if (data.opening_balance !== undefined) {
+                document.getElementById('opening_balance').textContent = data.opening_balance.toFixed(2);
+            }
+
+            // Handle entries
+            const tbody = document.getElementById('entriesBody');
+            if (data.entries && data.entries.length > 0) {
+                entries = data.entries;
+                tbody.innerHTML = '';
+                const toDate = document.getElementById('to_date').value;
+                data.entries.forEach(entry => {
+                    const row = document.createElement('tr');
+                    row.dataset.entry = entry.name;
+                    row.dataset.voucherType = entry.voucher_type;
+                    row.dataset.debit = entry.debit || 0;
+                    row.dataset.credit = entry.credit || 0;
+                    row.innerHTML = `
+                        <td><input type="checkbox" onchange="calculateSummary()"></td>
+                        <td>${entry.posting_date}</td>
+                        <td>${entry.voucher_type}</td>
+                        <td>${entry.voucher_no}</td>
+                        <td>${entry.party || '-'}</td>
+                        <td class="debit">${(entry.debit || 0).toFixed(2)}</td>
+                        <td class="credit">${(entry.credit || 0).toFixed(2)}</td>
+                        <td><input type="date" name="clearance_date" value="${toDate}"></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else if (data.entries) {
+                tbody.innerHTML = '<tr><td colspan="8">No unreconciled entries found for the selected period</td></tr>';
+            }
+
+            calculateSummary();
         }
 
         function calculateSummary() {
@@ -628,17 +701,13 @@
                 if (row.querySelector('input[type="checkbox"]').checked) {
                     const clearanceDate = row.querySelector('[name="clearance_date"]').value;
                     reconciled_entries.push({
-                        voucher_type: row.dataset.voucherType,
-                        voucher_no: row.dataset.entry,
+                        name: row.dataset.entry,
                         clearance_date: clearanceDate || document.getElementById('to_date').value
                     });
                 }
             });
             return {
                 bank_account: document.getElementById('bank_account').value,
-                from_date: document.getElementById('from_date').value,
-                to_date: document.getElementById('to_date').value,
-                statement_closing_balance: parseFloat(document.getElementById('statement_closing_balance').value) || 0,
                 reconciled_entries
             };
         }
@@ -657,42 +726,39 @@
         }
 
         function setTaskInput(data) {
-            if (!data) return;
-            if (data.bank_account) document.getElementById('bank_account').value = data.bank_account;
-            if (data.opening_balance !== undefined) {
-                document.getElementById('opening_balance').textContent = data.opening_balance.toFixed(2);
-            }
-
-            if (data.entries && data.entries.length > 0) {
-                entries = data.entries;
-                const tbody = document.getElementById('entriesBody');
-                tbody.innerHTML = '';
-                data.entries.forEach(entry => {
-                    const row = document.createElement('tr');
-                    row.dataset.entry = entry.name;
-                    row.dataset.voucherType = entry.voucher_type;
-                    row.dataset.debit = entry.debit || 0;
-                    row.dataset.credit = entry.credit || 0;
-                    row.innerHTML = `
-                        <td><input type="checkbox" onchange="calculateSummary()"></td>
-                        <td>${entry.posting_date}</td>
-                        <td>${entry.voucher_type}</td>
-                        <td>${entry.voucher_no}</td>
-                        <td>${entry.party || '-'}</td>
-                        <td class="debit">${(entry.debit || 0).toFixed(2)}</td>
-                        <td class="credit">${(entry.credit || 0).toFixed(2)}</td>
-                        <td><input type="date" name="clearance_date" value="${data.to_date || ''}"></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
-            calculateSummary();
+            handleFetchResponse(data);
         }
 
-        window.addEventListener('message', (e) => { if (e.data.type === 'taskData') setTaskInput(e.data.data); });
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            const { data } = event;
+            if (!data || !data.type) return;
+
+            // Handle fetch response from TaskRenderer
+            if (data.type === 'TASK_FETCH_RESPONSE') {
+                if (data.success && data.data) {
+                    handleFetchResponse(data.data);
+                } else if (data.error) {
+                    document.getElementById('entriesBody').innerHTML =
+                        `<tr><td colspan="8">Error: ${data.error}</td></tr>`;
+                }
+            }
+
+            // Handle legacy taskData message
+            if (data.type === 'taskData') {
+                setTaskInput(data.data);
+            }
+        });
+
         window.getTaskInput = getTaskInput;
         window.setTaskInput = setTaskInput;
         window.validateTaskInput = validateForm;
+
+        // Set default dates on load
+        const today = new Date();
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('from_date').valueAsDate = firstOfMonth;
+        document.getElementById('to_date').valueAsDate = today;
     </script>
 </body>
 </html>
